@@ -95,4 +95,31 @@ public class ProductController {
         ProductDto created = productService.createDigitalProduct(request);
         return ResponseEntity.ok(created);
     }
+    
+    /**
+     * Creates or gets a Digital Product from a Design Product.
+     * This allows users to purchase just the design file without the physical product.
+     * Public endpoint - users can access this to purchase designs.
+     */
+    @PostMapping("/products/{designProductId}/create-digital")
+    public ResponseEntity<ProductDto> createDigitalProductFromDesign(
+            @PathVariable Long designProductId,
+            @RequestBody(required = false) Map<String, java.math.BigDecimal> request) {
+        java.math.BigDecimal price = request != null && request.containsKey("price") ? 
+            request.get("price") : null;
+        ProductDto digitalProduct = productService.createDigitalProductFromDesign(designProductId, price);
+        return ResponseEntity.ok(digitalProduct);
+    }
+    
+    /**
+     * Gets the Digital Product associated with a Design Product (if exists).
+     */
+    @GetMapping("/products/{designProductId}/digital")
+    public ResponseEntity<ProductDto> getDigitalProductFromDesign(@PathVariable Long designProductId) {
+        ProductDto digitalProduct = productService.getDigitalProductFromDesign(designProductId);
+        if (digitalProduct == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(digitalProduct);
+    }
 }

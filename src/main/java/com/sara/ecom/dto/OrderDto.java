@@ -14,6 +14,7 @@ public class OrderDto {
     private Map<String, Object> shippingAddress;
     private Map<String, Object> billingAddress;
     private BigDecimal subtotal;
+    private BigDecimal gst;
     private BigDecimal shipping;
     private BigDecimal total;
     private String couponCode;
@@ -81,6 +82,8 @@ public class OrderDto {
     public void setBillingAddress(Map<String, Object> billingAddress) { this.billingAddress = billingAddress; }
     public BigDecimal getSubtotal() { return subtotal; }
     public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
+    public BigDecimal getGst() { return gst; }
+    public void setGst(BigDecimal gst) { this.gst = gst; }
     public BigDecimal getShipping() { return shipping; }
     public void setShipping(BigDecimal shipping) { this.shipping = shipping; }
     public BigDecimal getTotal() { return total; }

@@ -32,6 +32,7 @@ public class ProductRequest {
     private Boolean isNew;
     private Boolean isSale;
     private BigDecimal originalPrice;
+    private BigDecimal gstRate;
     
     public static class DetailSectionRequest {
         private String title;
@@ -348,7 +349,31 @@ public class ProductRequest {
     public BigDecimal getOriginalPrice() {
         return originalPrice;
     }
-    
+
+    public Boolean getNew() {
+        return isNew;
+    }
+
+    public void setNew(Boolean aNew) {
+        isNew = aNew;
+    }
+
+    public Boolean getSale() {
+        return isSale;
+    }
+
+    public void setSale(Boolean sale) {
+        isSale = sale;
+    }
+
+    public BigDecimal getGstRate() {
+        return gstRate;
+    }
+
+    public void setGstRate(BigDecimal gstRate) {
+        this.gstRate = gstRate;
+    }
+
     public void setOriginalPrice(BigDecimal originalPrice) {
         this.originalPrice = originalPrice;
     }

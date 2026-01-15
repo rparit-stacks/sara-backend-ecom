@@ -11,6 +11,7 @@ public class CouponDto {
     private BigDecimal minOrder;
     private BigDecimal maxDiscount;
     private Integer usageLimit;
+    private Integer perUserUsageLimit;
     private Integer usedCount;
     private LocalDateTime validFrom;
     private LocalDateTime validUntil;
@@ -36,6 +37,8 @@ public class CouponDto {
     public void setMaxDiscount(BigDecimal maxDiscount) { this.maxDiscount = maxDiscount; }
     public Integer getUsageLimit() { return usageLimit; }
     public void setUsageLimit(Integer usageLimit) { this.usageLimit = usageLimit; }
+    public Integer getPerUserUsageLimit() { return perUserUsageLimit; }
+    public void setPerUserUsageLimit(Integer perUserUsageLimit) { this.perUserUsageLimit = perUserUsageLimit; }
     public Integer getUsedCount() { return usedCount; }
     public void setUsedCount(Integer usedCount) { this.usedCount = usedCount; }
     public LocalDateTime getValidFrom() { return validFrom; }

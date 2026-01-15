@@ -11,7 +11,6 @@ import java.util.List;
 public class Order {
     
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
     @Column(name = "order_number", unique = true, nullable = false)
@@ -37,6 +36,9 @@ public class Order {
     
     @Column(precision = 10, scale = 2)
     private BigDecimal subtotal;
+    
+    @Column(precision = 10, scale = 2)
+    private BigDecimal gst;
     
     @Column(precision = 10, scale = 2)
     private BigDecimal shipping;
@@ -86,7 +88,14 @@ public class Order {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         if (orderNumber == null) {
-            orderNumber = "ORD-" + System.currentTimeMillis();
+            // Use the id as orderNumber (id is already set as 7-digit random number)
+            if (id != null) {
+                orderNumber = String.valueOf(id);
+            } else {
+                // Fallback: generate random 7-digit number (1000000 to 9999999)
+                long randomOrderId = 1000000L + (long)(Math.random() * 9000000L);
+                orderNumber = String.valueOf(randomOrderId);
+            }
         }
     }
     
@@ -166,6 +175,14 @@ public class Order {
     
     public void setSubtotal(BigDecimal subtotal) {
         this.subtotal = subtotal;
+    }
+    
+    public BigDecimal getGst() {
+        return gst;
+    }
+    
+    public void setGst(BigDecimal gst) {
+        this.gst = gst;
     }
     
     public BigDecimal getShipping() {

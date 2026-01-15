@@ -30,8 +30,10 @@ public class JwtService {
     }
     
     public String generateToken(String email) {
+        // Normalize email to lowercase before generating token
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : email;
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, email);
+        return createToken(claims, normalizedEmail);
     }
     
     public String generateAdminToken(String email, Long adminId) {
@@ -79,7 +81,9 @@ public class JwtService {
     }
     
     public String extractEmail(String token) {
-        return extractClaim(token, Claims::getSubject);
+        String email = extractClaim(token, Claims::getSubject);
+        // Normalize email to lowercase when extracting from token
+        return email != null ? email.toLowerCase().trim() : email;
     }
     
     public Date extractExpiration(String token) {
@@ -105,6 +109,8 @@ public class JwtService {
     
     public Boolean validateToken(String token, String email) {
         final String tokenEmail = extractEmail(token);
-        return (tokenEmail.equals(email) && !isTokenExpired(token));
+        // Normalize both emails for comparison
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : email;
+        return (tokenEmail.equals(normalizedEmail) && !isTokenExpired(token));
     }
 }

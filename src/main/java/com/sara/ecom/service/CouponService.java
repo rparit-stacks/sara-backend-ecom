@@ -3,7 +3,9 @@ package com.sara.ecom.service;
 import com.sara.ecom.dto.CouponDto;
 import com.sara.ecom.dto.CouponRequest;
 import com.sara.ecom.entity.Coupon;
+import com.sara.ecom.entity.CouponUsage;
 import com.sara.ecom.repository.CouponRepository;
+import com.sara.ecom.repository.CouponUsageRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,6 +14,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,7 +23,10 @@ public class CouponService {
     @Autowired
     private CouponRepository couponRepository;
     
-    public CouponDto validateCoupon(String code, BigDecimal orderTotal) {
+    @Autowired
+    private CouponUsageRepository couponUsageRepository;
+    
+    public CouponDto validateCoupon(String code, BigDecimal orderTotal, String userEmail) {
         CouponDto response = new CouponDto();
         response.setCode(code);
         
@@ -57,6 +63,16 @@ public class CouponService {
             return response;
         }
         
+        // Check per-user usage limit
+        if (userEmail != null && coupon.getPerUserUsageLimit() != null) {
+            Optional<CouponUsage> usage = couponUsageRepository.findByCouponAndUserEmail(coupon, userEmail);
+            if (usage.isPresent() && usage.get().getUsageCount() >= coupon.getPerUserUsageLimit()) {
+                response.setValid(false);
+                response.setMessage("You have reached the maximum usage limit for this coupon");
+                return response;
+            }
+        }
+        
         if (coupon.getMinOrder() != null && orderTotal.compareTo(coupon.getMinOrder()) < 0) {
             response.setValid(false);
             response.setMessage("Minimum order value of ₹" + coupon.getMinOrder() + " required");
@@ -84,11 +100,26 @@ public class CouponService {
     }
     
     @Transactional
-    public void useCoupon(String code) {
+    public void useCoupon(String code, String userEmail) {
         Coupon coupon = couponRepository.findByCodeIgnoreCase(code)
                 .orElseThrow(() -> new RuntimeException("Coupon not found"));
+        
+        // Increment global usage count
         coupon.incrementUsedCount();
         couponRepository.save(coupon);
+        
+        // Track per-user usage
+        if (userEmail != null) {
+            CouponUsage usage = couponUsageRepository.findByCouponAndUserEmail(coupon, userEmail)
+                    .orElseGet(() -> {
+                        CouponUsage newUsage = new CouponUsage();
+                        newUsage.setCoupon(coupon);
+                        newUsage.setUserEmail(userEmail);
+                        return newUsage;
+                    });
+            usage.incrementUsage();
+            couponUsageRepository.save(usage);
+        }
     }
     
     // Admin methods
@@ -131,6 +162,7 @@ public class CouponService {
         coupon.setMinOrder(request.getMinOrder());
         coupon.setMaxDiscount(request.getMaxDiscount());
         coupon.setUsageLimit(request.getUsageLimit());
+        coupon.setPerUserUsageLimit(request.getPerUserUsageLimit());
         coupon.setValidFrom(request.getValidFrom());
         coupon.setValidUntil(request.getValidUntil());
         coupon.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
@@ -145,6 +177,7 @@ public class CouponService {
         dto.setMinOrder(coupon.getMinOrder());
         dto.setMaxDiscount(coupon.getMaxDiscount());
         dto.setUsageLimit(coupon.getUsageLimit());
+        dto.setPerUserUsageLimit(coupon.getPerUserUsageLimit());
         dto.setUsedCount(coupon.getUsedCount());
         dto.setValidFrom(coupon.getValidFrom());
         dto.setValidUntil(coupon.getValidUntil());

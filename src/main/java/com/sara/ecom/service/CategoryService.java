@@ -263,6 +263,7 @@ public class CategoryService {
                 .image(request.getImage())
                 .description(request.getDescription())
                 .displayOrder(request.getDisplayOrder())
+                .isFabric(request.getIsFabric() != null ? request.getIsFabric() : false)
                 .build();
         
         category = categoryRepository.save(category);
@@ -316,6 +317,9 @@ public class CategoryService {
         }
         if (request.getDisplayOrder() != null) {
             category.setDisplayOrder(request.getDisplayOrder());
+        }
+        if (request.getIsFabric() != null) {
+            category.setIsFabric(request.getIsFabric());
         }
         
         category = categoryRepository.save(category);

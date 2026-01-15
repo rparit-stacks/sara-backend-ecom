@@ -6,6 +6,7 @@ import com.sara.ecom.repository.UserRepository;
 import com.sara.ecom.service.JwtService;
 import com.sara.ecom.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,24 +29,44 @@ public class OrderController {
     // User endpoints
     @PostMapping("/orders")
     public ResponseEntity<OrderDto> createOrder(
-            @RequestHeader("Authorization") String authHeader,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody CreateOrderRequest request) {
-        String userEmail = getUserEmailFromToken(authHeader);
+        String userEmail = null;
+        if (authHeader != null && !authHeader.isEmpty()) {
+            try {
+                userEmail = getUserEmailFromToken(authHeader);
+            } catch (Exception e) {
+                // Guest checkout - userEmail will be null
+            }
+        }
         return ResponseEntity.ok(orderService.createOrder(userEmail, request));
     }
     
     @GetMapping("/orders")
-    public ResponseEntity<List<OrderDto>> getUserOrders(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<List<OrderDto>> getUserOrders(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (authHeader == null || authHeader.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         String userEmail = getUserEmailFromToken(authHeader);
         return ResponseEntity.ok(orderService.getUserOrders(userEmail));
     }
     
     @GetMapping("/orders/{id}")
     public ResponseEntity<OrderDto> getOrderById(
-            @RequestHeader("Authorization") String authHeader,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable Long id) {
-        String userEmail = getUserEmailFromToken(authHeader);
-        return ResponseEntity.ok(orderService.getOrderById(id, userEmail));
+        // If authenticated, verify user owns the order
+        if (authHeader != null && !authHeader.isEmpty()) {
+            try {
+                String userEmail = getUserEmailFromToken(authHeader);
+                return ResponseEntity.ok(orderService.getOrderById(id, userEmail));
+            } catch (Exception e) {
+                // If token is invalid, fall through to public access
+            }
+        }
+        // Public access for order confirmation page (no auth required)
+        return ResponseEntity.ok(orderService.getOrderByIdPublic(id));
     }
     
     // Admin endpoints

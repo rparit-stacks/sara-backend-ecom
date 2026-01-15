@@ -7,7 +7,10 @@ import java.util.Map;
 public class CartDto {
     private List<CartItemDto> items;
     private BigDecimal subtotal;
+    private BigDecimal gst;
     private BigDecimal shipping;
+    private BigDecimal couponDiscount;
+    private String appliedCouponCode;
     private BigDecimal total;
     private Integer itemCount;
     
@@ -27,6 +30,8 @@ public class CartDto {
         private Integer quantity;
         private BigDecimal unitPrice;
         private BigDecimal totalPrice;
+        private BigDecimal gstRate;
+        private BigDecimal gstAmount;
         
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
@@ -58,6 +63,10 @@ public class CartDto {
         public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
         public BigDecimal getTotalPrice() { return totalPrice; }
         public void setTotalPrice(BigDecimal totalPrice) { this.totalPrice = totalPrice; }
+        public BigDecimal getGstRate() { return gstRate; }
+        public void setGstRate(BigDecimal gstRate) { this.gstRate = gstRate; }
+        public BigDecimal getGstAmount() { return gstAmount; }
+        public void setGstAmount(BigDecimal gstAmount) { this.gstAmount = gstAmount; }
     }
     
     // Getters and Setters
@@ -65,8 +74,14 @@ public class CartDto {
     public void setItems(List<CartItemDto> items) { this.items = items; }
     public BigDecimal getSubtotal() { return subtotal; }
     public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
+    public BigDecimal getGst() { return gst; }
+    public void setGst(BigDecimal gst) { this.gst = gst; }
     public BigDecimal getShipping() { return shipping; }
     public void setShipping(BigDecimal shipping) { this.shipping = shipping; }
+    public BigDecimal getCouponDiscount() { return couponDiscount; }
+    public void setCouponDiscount(BigDecimal couponDiscount) { this.couponDiscount = couponDiscount; }
+    public String getAppliedCouponCode() { return appliedCouponCode; }
+    public void setAppliedCouponCode(String appliedCouponCode) { this.appliedCouponCode = appliedCouponCode; }
     public BigDecimal getTotal() { return total; }
     public void setTotal(BigDecimal total) { this.total = total; }
     public Integer getItemCount() { return itemCount; }

@@ -29,7 +29,10 @@ public class Coupon {
     private BigDecimal maxDiscount;
     
     @Column(name = "usage_limit")
-    private Integer usageLimit;
+    private Integer usageLimit; // Global usage limit
+    
+    @Column(name = "per_user_usage_limit")
+    private Integer perUserUsageLimit; // Per-user usage limit (null = unlimited)
     
     @Column(name = "used_count")
     private Integer usedCount = 0;
@@ -110,6 +113,14 @@ public class Coupon {
     
     public void setUsageLimit(Integer usageLimit) {
         this.usageLimit = usageLimit;
+    }
+    
+    public Integer getPerUserUsageLimit() {
+        return perUserUsageLimit;
+    }
+    
+    public void setPerUserUsageLimit(Integer perUserUsageLimit) {
+        this.perUserUsageLimit = perUserUsageLimit;
     }
     
     public Integer getUsedCount() {

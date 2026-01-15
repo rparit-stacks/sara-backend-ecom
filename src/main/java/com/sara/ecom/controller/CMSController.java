@@ -72,6 +72,36 @@ public class CMSController {
         return ResponseEntity.ok(cmsService.submitTestimonial(linkId, request));
     }
     
+    // Email Subscription
+    @PostMapping("/subscribe")
+    public ResponseEntity<Map<String, String>> subscribeEmail(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        if (email == null || email.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email is required"));
+        }
+        try {
+            cmsService.subscribeEmail(email);
+            return ResponseEntity.ok(Map.of("message", "Successfully subscribed"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+    
+    // Fetch Instagram thumbnail
+    @PostMapping("/instagram/thumbnail")
+    public ResponseEntity<Map<String, String>> getInstagramThumbnail(@RequestBody Map<String, String> request) {
+        String url = request.get("url");
+        if (url == null || url.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "URL is required"));
+        }
+        try {
+            String thumbnailUrl = cmsService.getInstagramThumbnail(url);
+            return ResponseEntity.ok(Map.of("thumbnailUrl", thumbnailUrl));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+    
     // ===== Admin Endpoints =====
     
     // Best Sellers

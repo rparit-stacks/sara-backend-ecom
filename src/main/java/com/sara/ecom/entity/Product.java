@@ -52,6 +52,10 @@ public class Product {
     @Column(name = "file_url")
     private String fileUrl;
     
+    // Link to source Design Product if this Digital Product was created from a Design Product
+    @Column(name = "source_design_product_id")
+    private Long sourceDesignProductId;
+    
     @Column(name = "is_new")
     private Boolean isNew = false;
     
@@ -60,6 +64,18 @@ public class Product {
     
     @Column(name = "original_price", precision = 10, scale = 2)
     private BigDecimal originalPrice;
+    
+    @Column(name = "gst_rate", precision = 5, scale = 2)
+    private BigDecimal gstRate;
+    
+    // Getters and Setters
+    public BigDecimal getGstRate() {
+        return gstRate;
+    }
+    
+    public void setGstRate(BigDecimal gstRate) {
+        this.gstRate = gstRate;
+    }
     
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("displayOrder ASC")
@@ -204,6 +220,14 @@ public class Product {
     
     public void setFileUrl(String fileUrl) {
         this.fileUrl = fileUrl;
+    }
+    
+    public Long getSourceDesignProductId() {
+        return sourceDesignProductId;
+    }
+    
+    public void setSourceDesignProductId(Long sourceDesignProductId) {
+        this.sourceDesignProductId = sourceDesignProductId;
     }
     
     public Boolean getIsNew() {

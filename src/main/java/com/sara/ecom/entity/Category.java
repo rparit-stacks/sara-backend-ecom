@@ -43,6 +43,10 @@ public class Category {
     
     private Integer displayOrder;
     
+    @Column(name = "is_fabric")
+    @Builder.Default
+    private Boolean isFabric = false;
+    
     private LocalDateTime createdAt;
     
     private LocalDateTime updatedAt;

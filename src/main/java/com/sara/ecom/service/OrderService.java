@@ -3,6 +3,7 @@ package com.sara.ecom.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sara.ecom.dto.AddToCartRequest;
 import com.sara.ecom.dto.CartDto;
 import com.sara.ecom.dto.CreateOrderRequest;
 import com.sara.ecom.dto.OrderDto;
@@ -34,28 +35,125 @@ public class OrderService {
     private CouponService couponService;
     
     @Autowired
+    private ShippingService shippingService;
+    
+    @Autowired
     private UserRepository userRepository;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     @Transactional
     public OrderDto createOrder(String userEmail, CreateOrderRequest request) {
-        // Get cart
-        CartDto cart = cartService.getCart(userEmail);
+        // Handle guest checkout - auto-create user if needed
+        User user;
+        if (userEmail == null || userEmail.isEmpty()) {
+            // Guest checkout - create user from request data
+            if (request.getGuestEmail() == null || request.getGuestEmail().isEmpty()) {
+                throw new RuntimeException("Email is required for guest checkout");
+            }
+            
+            // Convert email to lowercase to prevent duplicate accounts
+            String normalizedEmail = request.getGuestEmail().toLowerCase().trim();
+            user = userRepository.findByEmail(normalizedEmail)
+                    .orElseGet(() -> {
+                        // Create new user for guest checkout
+                        User newUser = User.builder()
+                                .email(normalizedEmail)
+                                .firstName(request.getGuestFirstName())
+                                .lastName(request.getGuestLastName())
+                                .phoneNumber(request.getGuestPhone())
+                                .authProvider(User.AuthProvider.OTP) // Default for guest users
+                                .emailVerified(false)
+                                .status(User.UserStatus.ACTIVE)
+                                .build();
+                        return userRepository.save(newUser);
+                    });
+            
+            // Update user info if provided and not set
+            boolean updated = false;
+            if (request.getGuestFirstName() != null && user.getFirstName() == null) {
+                user.setFirstName(request.getGuestFirstName());
+                updated = true;
+            }
+            if (request.getGuestLastName() != null && user.getLastName() == null) {
+                user.setLastName(request.getGuestLastName());
+                updated = true;
+            }
+            if (request.getGuestPhone() != null && user.getPhoneNumber() == null) {
+                user.setPhoneNumber(request.getGuestPhone());
+                updated = true;
+            }
+            if (updated) {
+                user = userRepository.save(user);
+            }
+            
+            userEmail = user.getEmail();
+            
+            // For guest checkout, create cart items from request if provided
+            if (request.getGuestCartItems() != null && !request.getGuestCartItems().isEmpty()) {
+                for (AddToCartRequest cartItemRequest : request.getGuestCartItems()) {
+                    cartService.addToCart(userEmail, cartItemRequest);
+                }
+            }
+        } else {
+            // Existing user
+            user = userRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+        }
+        
+        // Get cart items (without state/coupon for initial calculation)
+        CartDto cart = cartService.getCart(userEmail, null, null);
         if (cart.getItems().isEmpty()) {
             throw new RuntimeException("Cart is empty");
         }
         
-        // Get user
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        // Extract state from shipping address
+        String state = null;
+        if (request.getShippingAddress() != null && request.getShippingAddress().containsKey("state")) {
+            state = (String) request.getShippingAddress().get("state");
+        } else if (request.getShippingAddressId() != null) {
+            // Try to get state from address ID if available
+            // This would require UserAddressService - for now use address from request
+        }
+        
+        // Recalculate shipping based on address state
+        BigDecimal shipping = shippingService.calculateShipping(cart.getSubtotal(), state);
+        
+        // Generate unique 7-digit random order ID (1000000 to 9999999)
+        Long orderId = 1000000L + (long)(Math.random() * 9000000L);
+        boolean isUnique = false;
+        int attempts = 0;
+        while (!isUnique && attempts < 100) {
+            if (!orderRepository.existsById(orderId)) {
+                isUnique = true;
+            } else {
+                attempts++;
+                orderId = 1000000L + (long)(Math.random() * 9000000L);
+            }
+        }
+        if (!isUnique) {
+            // Fallback: use timestamp-based ID if all random attempts fail
+            orderId = System.currentTimeMillis() % 10000000L;
+            if (orderId < 1000000L) {
+                orderId += 1000000L;
+            }
+            // Ensure it's unique by incrementing if needed
+            while (orderRepository.existsById(orderId)) {
+                orderId = (orderId + 1L) % 10000000L;
+                if (orderId < 1000000L) {
+                    orderId += 1000000L;
+                }
+            }
+        }
         
         // Create order
         Order order = new Order();
+        order.setId(orderId);
         order.setUserEmail(user.getEmail());
         order.setUserName(user.getFirstName() + " " + (user.getLastName() != null ? user.getLastName() : ""));
         order.setSubtotal(cart.getSubtotal());
-        order.setShipping(cart.getShipping());
+        order.setGst(cart.getGst() != null ? cart.getGst() : BigDecimal.ZERO);
+        order.setShipping(shipping);
         order.setPaymentMethod(request.getPaymentMethod());
         order.setNotes(request.getNotes());
         order.setShippingAddressId(request.getShippingAddressId());
@@ -80,17 +178,22 @@ public class OrderService {
         // Apply coupon if provided
         BigDecimal couponDiscount = BigDecimal.ZERO;
         if (request.getCouponCode() != null && !request.getCouponCode().isEmpty()) {
-            var validation = couponService.validateCoupon(request.getCouponCode(), cart.getSubtotal());
-            if (validation.getValid()) {
-                couponDiscount = validation.getDiscount();
+            // Validate against subtotal + GST + shipping
+            BigDecimal totalBeforeCoupon = cart.getSubtotal()
+                    .add(cart.getGst() != null ? cart.getGst() : BigDecimal.ZERO)
+                    .add(shipping);
+            var validation = couponService.validateCoupon(request.getCouponCode(), totalBeforeCoupon, userEmail);
+            if (validation.getValid() != null && validation.getValid()) {
+                couponDiscount = validation.getDiscount() != null ? validation.getDiscount() : BigDecimal.ZERO;
                 order.setCouponCode(request.getCouponCode());
                 order.setCouponDiscount(couponDiscount);
-                couponService.useCoupon(request.getCouponCode());
+                couponService.useCoupon(request.getCouponCode(), userEmail);
             }
         }
         
-        // Calculate total
-        order.setTotal(cart.getSubtotal().add(cart.getShipping()).subtract(couponDiscount));
+        // Calculate total: (Subtotal + GST + Shipping) - Coupon Discount
+        BigDecimal gst = cart.getGst() != null ? cart.getGst() : BigDecimal.ZERO;
+        order.setTotal(cart.getSubtotal().add(gst).add(shipping).subtract(couponDiscount));
         
         // Add items
         for (CartDto.CartItemDto cartItem : cart.getItems()) {
@@ -144,6 +247,13 @@ public class OrderService {
         return toOrderDto(order);
     }
     
+    // Public method to get order by ID (for confirmation page - no auth required)
+    public OrderDto getOrderByIdPublic(Long orderId) {
+        Order order = orderRepository.findByIdWithItems(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        return toOrderDto(order);
+    }
+    
     // Admin methods
     public List<OrderDto> getAllOrders(String status) {
         List<Order> orders;
@@ -187,6 +297,7 @@ public class OrderService {
         dto.setUserEmail(order.getUserEmail());
         dto.setUserName(order.getUserName());
         dto.setSubtotal(order.getSubtotal());
+        dto.setGst(order.getGst());
         dto.setShipping(order.getShipping());
         dto.setTotal(order.getTotal());
         dto.setCouponCode(order.getCouponCode());

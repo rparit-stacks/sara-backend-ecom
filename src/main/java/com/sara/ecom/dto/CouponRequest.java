@@ -10,6 +10,7 @@ public class CouponRequest {
     private BigDecimal minOrder;
     private BigDecimal maxDiscount;
     private Integer usageLimit;
+    private Integer perUserUsageLimit;
     private LocalDateTime validFrom;
     private LocalDateTime validUntil;
     private Boolean isActive;
@@ -27,6 +28,8 @@ public class CouponRequest {
     public void setMaxDiscount(BigDecimal maxDiscount) { this.maxDiscount = maxDiscount; }
     public Integer getUsageLimit() { return usageLimit; }
     public void setUsageLimit(Integer usageLimit) { this.usageLimit = usageLimit; }
+    public Integer getPerUserUsageLimit() { return perUserUsageLimit; }
+    public void setPerUserUsageLimit(Integer perUserUsageLimit) { this.perUserUsageLimit = perUserUsageLimit; }
     public LocalDateTime getValidFrom() { return validFrom; }
     public void setValidFrom(LocalDateTime validFrom) { this.validFrom = validFrom; }
     public LocalDateTime getValidUntil() { return validUntil; }

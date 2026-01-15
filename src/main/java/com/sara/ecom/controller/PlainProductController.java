@@ -36,8 +36,10 @@ public class PlainProductController {
     // Get all active plain products (for admin product form)
     // This now fetches from products table where type=PLAIN, not from plain_products table
     @GetMapping("/plain-products/active")
-    public ResponseEntity<List<PlainProductDto>> getActivePlainProducts() {
+    public ResponseEntity<List<PlainProductDto>> getActivePlainProducts(
+            @RequestParam(required = false, defaultValue = "false") Boolean fabricsOnly) {
         // Fetch products where type=PLAIN and status=ACTIVE
+        // If fabricsOnly=true, only return products from fabric categories
         List<com.sara.ecom.dto.ProductDto> products = productService.getAllProducts("active", "PLAIN", null);
         
         // Convert ProductDto to PlainProductDto format for frontend compatibility

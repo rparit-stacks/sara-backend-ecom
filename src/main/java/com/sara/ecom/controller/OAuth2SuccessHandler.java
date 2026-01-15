@@ -29,6 +29,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         Map<String, Object> attributes = oauth2User.getAttributes();
         
         String email = (String) attributes.get("email");
+        // Convert email to lowercase to prevent duplicate accounts
+        if (email != null) {
+            email = email.toLowerCase().trim();
+        }
         String providerId = (String) attributes.get("sub");
         String firstName = (String) attributes.get("given_name");
         String lastName = (String) attributes.get("family_name");

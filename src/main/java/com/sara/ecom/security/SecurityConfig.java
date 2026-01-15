@@ -17,6 +17,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import org.springframework.security.web.util.matcher.AnyRequestMatcher;
 import java.util.Arrays;
 import java.util.List;
 
@@ -36,14 +37,19 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // OAuth2 endpoints (must be first to avoid redirect loops)
+                .requestMatchers("/login/oauth2/**").permitAll()
+                .requestMatchers("/oauth2/**").permitAll()
                 // Auth endpoints
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/admin/auth/**").permitAll()
+                // Public shipping endpoint (for guest checkout)
+                .requestMatchers("/api/shipping/calculate").permitAll()
+                // Order endpoints (for guest checkout and confirmation page)
+                .requestMatchers("/api/orders").permitAll()
+                .requestMatchers("/api/orders/**").permitAll()
                 // Admin endpoints - they handle their own token verification
                 .requestMatchers("/api/admin/**").permitAll()
-                // OAuth2 endpoints
-                .requestMatchers("/login/oauth2/**").permitAll()
-                .requestMatchers("/oauth2/**").permitAll()
                 // Public API endpoints
                 .requestMatchers("/api/categories/**").permitAll()
                 .requestMatchers("/api/plain-products/**").permitAll()
@@ -55,15 +61,38 @@ public class SecurityConfig {
                 .requestMatchers("/api/custom-config").permitAll()
                 .requestMatchers("/api/custom-design-requests").permitAll()
                 .requestMatchers("/api/testimonials/**").permitAll()
+                .requestMatchers("/api/subscribe").permitAll()
+                .requestMatchers("/api/instagram/thumbnail").permitAll()
                 .requestMatchers("/api/coupons/validate").permitAll()
                 // Error handling
                 .requestMatchers("/error").permitAll()
                 // All other requests require authentication
                 .anyRequest().authenticated()
             )
+            .exceptionHandling(exceptions -> exceptions
+                .defaultAuthenticationEntryPointFor(
+                    (request, response, authException) -> {
+                        // For API endpoints, return 401 instead of redirecting to OAuth2
+                        if (request.getRequestURI().startsWith("/api/")) {
+                            response.setStatus(401);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\":\"Unauthorized\"}");
+                        } else {
+                            // For non-API endpoints (like browser requests), allow OAuth2 redirect
+                            try {
+                                response.sendRedirect("/oauth2/authorization/google");
+                            } catch (java.io.IOException e) {
+                                response.setStatus(401);
+                            }
+                        }
+                    },
+                    AnyRequestMatcher.INSTANCE
+                )
+            )
             .oauth2Login(oauth2 -> oauth2
                 .successHandler(oAuth2SuccessHandler)
                 .failureUrl("/login?error=true")
+                .permitAll()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         

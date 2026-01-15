@@ -23,7 +23,8 @@ public class CouponController {
     public ResponseEntity<CouponDto> validateCoupon(@RequestBody Map<String, Object> request) {
         String code = (String) request.get("code");
         BigDecimal orderTotal = new BigDecimal(request.get("orderTotal").toString());
-        return ResponseEntity.ok(couponService.validateCoupon(code, orderTotal));
+        String userEmail = request.get("userEmail") != null ? (String) request.get("userEmail") : null;
+        return ResponseEntity.ok(couponService.validateCoupon(code, orderTotal, userEmail));
     }
     
     // Admin endpoints

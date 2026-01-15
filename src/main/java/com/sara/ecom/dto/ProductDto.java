@@ -33,11 +33,13 @@ public class ProductDto {
     private BigDecimal price;
     private BigDecimal pricePerMeter;
     private String fileUrl;
+    private Long sourceDesignProductId; // Link to Design Product if created from it
     
     // Common display flags
     private Boolean isNew;
     private Boolean isSale;
     private BigDecimal originalPrice;
+    private BigDecimal gstRate;
     
     public static class DetailSectionDto {
         private Long id;
@@ -403,6 +405,14 @@ public class ProductDto {
         this.fileUrl = fileUrl;
     }
     
+    public Long getSourceDesignProductId() {
+        return sourceDesignProductId;
+    }
+    
+    public void setSourceDesignProductId(Long sourceDesignProductId) {
+        this.sourceDesignProductId = sourceDesignProductId;
+    }
+    
     public Boolean getIsNew() {
         return isNew;
     }
@@ -433,5 +443,13 @@ public class ProductDto {
 
     public void setOriginalPrice(BigDecimal originalPrice) {
         this.originalPrice = originalPrice;
+    }
+    
+    public BigDecimal getGstRate() {
+        return gstRate;
+    }
+    
+    public void setGstRate(BigDecimal gstRate) {
+        this.gstRate = gstRate;
     }
 }

@@ -24,6 +24,7 @@ public class CategoryDto {
     private String image;
     private String description;
     private Integer displayOrder;
+    private Boolean isFabric;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<CategoryDto> subcategories;
@@ -44,6 +45,7 @@ public class CategoryDto {
                 .image(category.getImage())
                 .description(category.getDescription())
                 .displayOrder(category.getDisplayOrder())
+                .isFabric(category.getIsFabric())
                 .createdAt(category.getCreatedAt())
                 .updatedAt(category.getUpdatedAt())
                 .build();

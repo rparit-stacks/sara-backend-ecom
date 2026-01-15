@@ -2,6 +2,7 @@ package com.sara.ecom.service;
 
 import com.sara.ecom.dto.CMSDto;
 import com.sara.ecom.entity.*;
+import com.sara.ecom.entity.EmailSubscription;
 import com.sara.ecom.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.net.URL;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 
 @Service
 public class CMSService {
@@ -34,6 +41,9 @@ public class CMSService {
     
     @Autowired
     private CMSContentRepository cmsContentRepository;
+    
+    @Autowired
+    private EmailSubscriptionRepository emailSubscriptionRepository;
     
     // Homepage data
     public CMSDto.HomepageResponse getHomepageData() {
@@ -330,6 +340,13 @@ public class CMSService {
         dto.setLinkId(link.getLinkId());
         dto.setIsUsed(link.getIsUsed());
         dto.setCreatedAt(link.getCreatedAt());
+        // Set full link URL (frontend will construct it, but we can provide it for convenience)
+        // Note: In production, you might want to get this from configuration
+        String baseUrl = System.getenv().getOrDefault("FRONTEND_BASE_URL", "http://localhost:3000");
+        if (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+        dto.setFullLink(baseUrl + "/testimonial/" + link.getLinkId());
         return dto;
     }
     
@@ -340,6 +357,108 @@ public class CMSService {
         dto.setDescription(o.getDescription());
         dto.setIsActive(o.getIsActive());
         return dto;
+    }
+    
+    // Get Instagram Thumbnail
+    public String getInstagramThumbnail(String url) {
+        if (url == null || url.trim().isEmpty()) {
+            throw new RuntimeException("URL is required");
+        }
+        
+        // If it's already a direct image URL, return it
+        if (url.matches(".*\\.(jpg|jpeg|png|gif|webp)$")) {
+            return url;
+        }
+        
+        // Extract shortcode from Instagram URL
+        // Supports formats like:
+        // https://www.instagram.com/p/ABC123/
+        // https://instagram.com/p/ABC123/
+        // https://www.instagram.com/reel/ABC123/
+        Pattern pattern = Pattern.compile("instagram\\.com/(?:p|reel)/([A-Za-z0-9_-]+)");
+        Matcher matcher = pattern.matcher(url);
+        
+        if (matcher.find()) {
+            String shortcode = matcher.group(1);
+            // Use Instagram's media endpoint to get the image
+            // This works for most public posts
+            return "https://www.instagram.com/p/" + shortcode + "/media/?size=l";
+        }
+        
+        // If not an Instagram URL, try to fetch og:image from the page
+        try {
+            return fetchOgImage(url);
+        } catch (Exception e) {
+            // If all else fails, return the original URL
+            return url;
+        }
+    }
+    
+    private String fetchOgImage(String url) throws Exception {
+        try {
+            URL urlObj = new URL(url);
+            HttpURLConnection connection = (HttpURLConnection) urlObj.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+            
+            BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            StringBuilder html = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                html.append(line);
+            }
+            reader.close();
+            
+            // Extract og:image
+            Pattern ogImagePattern = Pattern.compile("<meta\\s+property=[\"']og:image[\"']\\s+content=[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
+            Matcher ogMatcher = ogImagePattern.matcher(html.toString());
+            if (ogMatcher.find()) {
+                return ogMatcher.group(1);
+            }
+            
+            // Try alternate format
+            Pattern ogImagePattern2 = Pattern.compile("<meta\\s+content=[\"']([^\"']+)[\"']\\s+property=[\"']og:image[\"']", Pattern.CASE_INSENSITIVE);
+            Matcher ogMatcher2 = ogImagePattern2.matcher(html.toString());
+            if (ogMatcher2.find()) {
+                return ogMatcher2.group(1);
+            }
+            
+            throw new RuntimeException("Could not find og:image in page");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch thumbnail: " + e.getMessage());
+        }
+    }
+    
+    // Email Subscription
+    @Transactional
+    public void subscribeEmail(String email) {
+        // Normalize email to lowercase
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : email;
+        
+        if (normalizedEmail == null || normalizedEmail.isEmpty()) {
+            throw new RuntimeException("Email is required");
+        }
+        
+        // Check if email already exists
+        if (emailSubscriptionRepository.existsByEmail(normalizedEmail)) {
+            // Update existing subscription to active if it was inactive
+            EmailSubscription existing = emailSubscriptionRepository.findByEmail(normalizedEmail)
+                    .orElseThrow(() -> new RuntimeException("Email subscription not found"));
+            if (!existing.getIsActive()) {
+                existing.setIsActive(true);
+                emailSubscriptionRepository.save(existing);
+            }
+            // If already active, just return (no error)
+            return;
+        }
+        
+        // Create new subscription
+        EmailSubscription subscription = new EmailSubscription();
+        subscription.setEmail(normalizedEmail);
+        subscription.setIsActive(true);
+        emailSubscriptionRepository.save(subscription);
     }
     
     private CMSDto.BannerDto toBannerDto(Banner b) {

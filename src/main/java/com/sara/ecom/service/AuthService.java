@@ -20,23 +20,27 @@ public class AuthService {
     
     @Transactional
     public void requestOtp(OtpRequest request) {
-        String otp = otpService.generateOtp(request.getEmail());
-        emailService.sendOtpEmail(request.getEmail(), otp);
+        // Convert email to lowercase to prevent duplicate accounts
+        String email = request.getEmail().toLowerCase().trim();
+        String otp = otpService.generateOtp(email);
+        emailService.sendOtpEmail(email, otp);
     }
     
     @Transactional
     public AuthResponse verifyOtp(OtpVerifyRequest request) {
-        boolean isValid = otpService.verifyOtp(request.getEmail(), request.getOtp());
+        // Convert email to lowercase to prevent duplicate accounts
+        String email = request.getEmail().toLowerCase().trim();
+        boolean isValid = otpService.verifyOtp(email, request.getOtp());
         
         if (!isValid) {
             throw new RuntimeException("Invalid or expired OTP");
         }
         
         // Find or create user
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmail(email)
                 .orElseGet(() -> {
                     User newUser = User.builder()
-                            .email(request.getEmail())
+                            .email(email)
                             .authProvider(User.AuthProvider.OTP)
                             .emailVerified(true)
                             .build();
@@ -53,7 +57,7 @@ public class AuthService {
         String token = jwtService.generateToken(user.getEmail());
         
         // Delete OTP after successful verification
-        otpService.deleteOtp(request.getEmail());
+        otpService.deleteOtp(email);
         
         return AuthResponse.builder()
                 .token(token)
@@ -64,10 +68,12 @@ public class AuthService {
     
     @Transactional
     public AuthResponse handleOAuthLogin(String email, String oauthProviderId, String firstName, String lastName) {
-        User user = userRepository.findByEmail(email)
+        // Convert email to lowercase to prevent duplicate accounts
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : null;
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseGet(() -> {
                     User newUser = User.builder()
-                            .email(email)
+                            .email(normalizedEmail)
                             .authProvider(User.AuthProvider.GOOGLE)
                             .oauthProviderId(oauthProviderId)
                             .emailVerified(true)

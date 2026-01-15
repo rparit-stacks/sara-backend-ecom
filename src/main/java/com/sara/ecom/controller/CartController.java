@@ -25,9 +25,12 @@ public class CartController {
     private UserRepository userRepository;
     
     @GetMapping
-    public ResponseEntity<CartDto> getCart(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<CartDto> getCart(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String couponCode) {
         String userEmail = getUserEmailFromToken(authHeader);
-        return ResponseEntity.ok(cartService.getCart(userEmail));
+        return ResponseEntity.ok(cartService.getCart(userEmail, state, couponCode));
     }
     
     @PostMapping

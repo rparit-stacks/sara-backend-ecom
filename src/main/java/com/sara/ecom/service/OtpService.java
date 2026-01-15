@@ -27,14 +27,16 @@ public class OtpService {
     
     @Transactional
     public String generateOtp(String email) {
+        // Normalize email to lowercase to prevent duplicate accounts
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : email;
         // Delete existing OTP for this email
-        otpVerificationRepository.deleteByEmail(email);
+        otpVerificationRepository.deleteByEmail(normalizedEmail);
         
         // Generate new OTP
         String otp = generateRandomOtp();
         
         OtpVerification otpVerification = OtpVerification.builder()
-                .email(email)
+                .email(normalizedEmail)
                 .otp(otp)
                 .expiresAt(LocalDateTime.now().plusSeconds(otpExpirationMillis / 1000))
                 .verified(false)
@@ -47,8 +49,10 @@ public class OtpService {
     
     @Transactional
     public boolean verifyOtp(String email, String otp) {
+        // Normalize email to lowercase to prevent duplicate accounts
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : email;
         Optional<OtpVerification> otpVerificationOpt = 
-            otpVerificationRepository.findByEmailAndOtpAndVerifiedFalse(email, otp);
+            otpVerificationRepository.findByEmailAndOtpAndVerifiedFalse(normalizedEmail, otp);
         
         if (otpVerificationOpt.isEmpty()) {
             return false;
@@ -79,6 +83,8 @@ public class OtpService {
     
     @Transactional
     public void deleteOtp(String email) {
-        otpVerificationRepository.deleteByEmail(email);
+        // Normalize email to lowercase
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : email;
+        otpVerificationRepository.deleteByEmail(normalizedEmail);
     }
 }

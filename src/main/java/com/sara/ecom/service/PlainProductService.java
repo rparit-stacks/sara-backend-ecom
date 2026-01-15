@@ -6,6 +6,7 @@ import com.sara.ecom.entity.PlainProduct;
 import com.sara.ecom.entity.PlainProductVariant;
 import com.sara.ecom.entity.PlainProductVariantOption;
 import com.sara.ecom.repository.PlainProductRepository;
+import com.sara.ecom.repository.CategoryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,9 @@ public class PlainProductService {
     
     @Autowired
     private PlainProductRepository plainProductRepository;
+    
+    @Autowired
+    private CategoryRepository categoryRepository;
     
     public List<PlainProductDto> getAllPlainProducts(String status, Long categoryId) {
         List<PlainProduct> products;
@@ -36,7 +40,62 @@ public class PlainProductService {
             products = plainProductRepository.findAllWithVariants();
         }
         
-        return products.stream().map(this::toDto).collect(Collectors.toList());
+        List<PlainProductDto> result = products.stream().map(this::toDto).collect(Collectors.toList());
+        
+        // Filter by fabric categories only if no specific categoryId is provided
+        if (categoryId == null && status != null) {
+            // Get all fabric category IDs
+            List<com.sara.ecom.entity.Category> fabricCategories = 
+                categoryRepository.findByIsFabricTrueAndStatus(com.sara.ecom.entity.Category.Status.valueOf(status.toUpperCase()));
+            List<Long> fabricCategoryIds = fabricCategories.stream()
+                .map(com.sara.ecom.entity.Category::getId)
+                .collect(Collectors.toList());
+            
+            // Filter products to only include those in fabric categories
+            if (!fabricCategoryIds.isEmpty()) {
+                result = result.stream()
+                    .filter(p -> p.getCategoryId() != null && fabricCategoryIds.contains(p.getCategoryId()))
+                    .collect(Collectors.toList());
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Gets all plain products that are in fabric categories only.
+     * Used for fabric selection in design products.
+     */
+    public List<PlainProductDto> getFabricPlainProducts(String status) {
+        // Get all fabric categories
+        List<com.sara.ecom.entity.Category> fabricCategories = 
+            categoryRepository.findByIsFabricTrueAndStatus(
+                status != null ? 
+                    com.sara.ecom.entity.Category.Status.valueOf(status.toUpperCase()) : 
+                    com.sara.ecom.entity.Category.Status.ACTIVE
+            );
+        List<Long> fabricCategoryIds = fabricCategories.stream()
+            .map(com.sara.ecom.entity.Category::getId)
+            .collect(Collectors.toList());
+        
+        if (fabricCategoryIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        // Get all plain products in fabric categories
+        List<PlainProduct> products;
+        if (status != null) {
+            PlainProduct.Status statusEnum = PlainProduct.Status.valueOf(status.toUpperCase());
+            products = plainProductRepository.findAllWithVariantsByStatus(statusEnum);
+        } else {
+            products = plainProductRepository.findAllWithVariants();
+        }
+        
+        // Filter by fabric categories
+        return products.stream()
+            .filter(p -> p.getCategoryId() != null && fabricCategoryIds.contains(p.getCategoryId()))
+            .map(this::toDto)
+            .collect(Collectors.toList());
     }
     
     public PlainProductDto getPlainProductById(Long id) {

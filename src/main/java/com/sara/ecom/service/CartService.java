@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sara.ecom.dto.AddToCartRequest;
 import com.sara.ecom.dto.CartDto;
+import com.sara.ecom.dto.CouponDto;
 import com.sara.ecom.entity.CartItem;
 import com.sara.ecom.repository.CartItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,13 +24,22 @@ public class CartService {
     @Autowired
     private CartItemRepository cartItemRepository;
     
+    @Autowired
+    private ShippingService shippingService;
+    
+    @Autowired
+    private CouponService couponService;
+    
+    @Autowired
+    private com.sara.ecom.repository.ProductRepository productRepository;
+    
     private final ObjectMapper objectMapper = new ObjectMapper();
     
-    public CartDto getCart(String userEmail) {
+    public CartDto getCart(String userEmail, String state, String couponCode) {
         List<CartItem> items = cartItemRepository.findByUserEmailOrderByCreatedAtDesc(userEmail);
         
         CartDto cart = new CartDto();
-        cart.setItems(items.stream().map(this::toCartItemDto).collect(Collectors.toList()));
+        cart.setItems(items.stream().map(item -> toCartItemDto(item)).collect(Collectors.toList()));
         cart.setItemCount(items.size());
         
         BigDecimal subtotal = items.stream()
@@ -38,10 +48,79 @@ public class CartService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         
         cart.setSubtotal(subtotal);
-        cart.setShipping(calculateShipping(subtotal));
-        cart.setTotal(subtotal.add(cart.getShipping()));
+        
+        // Calculate GST per item based on category
+        BigDecimal totalGst = BigDecimal.ZERO;
+        for (CartDto.CartItemDto item : cart.getItems()) {
+            BigDecimal itemGst = calculateItemGst(item);
+            totalGst = totalGst.add(itemGst);
+        }
+        cart.setGst(totalGst);
+        
+        // Calculate shipping based on state
+        BigDecimal shipping = shippingService.calculateShipping(subtotal, state);
+        cart.setShipping(shipping);
+        
+        // Calculate total before coupon: Subtotal + GST + Shipping
+        BigDecimal totalBeforeCoupon = subtotal.add(totalGst).add(shipping);
+        
+        // Apply coupon discount if provided
+        BigDecimal couponDiscount = BigDecimal.ZERO;
+        if (couponCode != null && !couponCode.trim().isEmpty()) {
+            // Validate coupon against totalBeforeCoupon (subtotal + shipping)
+            CouponDto couponValidation = couponService.validateCoupon(couponCode, totalBeforeCoupon, userEmail);
+            if (couponValidation.getValid() != null && couponValidation.getValid()) {
+                couponDiscount = couponValidation.getDiscount() != null ? couponValidation.getDiscount() : BigDecimal.ZERO;
+                cart.setAppliedCouponCode(couponCode);
+            } else {
+                // Invalid coupon - don't set it
+                cart.setAppliedCouponCode(null);
+            }
+        } else {
+            cart.setAppliedCouponCode(null);
+        }
+        cart.setCouponDiscount(couponDiscount);
+        
+        // Final total: (Subtotal + GST + Shipping) - Coupon Discount
+        cart.setTotal(totalBeforeCoupon.subtract(couponDiscount));
         
         return cart;
+    }
+    
+    private BigDecimal calculateItemGst(CartDto.CartItemDto item) {
+        try {
+            // Get product to find GST rate
+            com.sara.ecom.entity.Product product = productRepository.findById(item.getProductId())
+                    .orElse(null);
+            
+            if (product == null) {
+                return BigDecimal.ZERO;
+            }
+            
+            // Get GST rate from product
+            if (product.getGstRate() == null || product.getGstRate().compareTo(BigDecimal.ZERO) == 0) {
+                return BigDecimal.ZERO;
+            }
+            
+            // Calculate GST: (item total price * GST rate) / 100
+            BigDecimal itemTotal = item.getTotalPrice() != null ? item.getTotalPrice() : BigDecimal.ZERO;
+            BigDecimal gstRate = product.getGstRate();
+            BigDecimal gstAmount = itemTotal.multiply(gstRate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+            
+            // Set GST info on item
+            item.setGstRate(gstRate);
+            item.setGstAmount(gstAmount);
+            
+            return gstAmount;
+        } catch (Exception e) {
+            // If any error occurs, return zero GST
+            return BigDecimal.ZERO;
+        }
+    }
+    
+    // Overloaded method for backward compatibility
+    public CartDto getCart(String userEmail) {
+        return getCart(userEmail, null, null);
     }
     
     @Transactional
@@ -113,14 +192,6 @@ public class CartService {
         return cartItemRepository.countByUserEmail(userEmail);
     }
     
-    private BigDecimal calculateShipping(BigDecimal subtotal) {
-        // Free shipping over 1000
-        if (subtotal.compareTo(new BigDecimal("1000")) >= 0) {
-            return BigDecimal.ZERO;
-        }
-        return new BigDecimal("99");
-    }
-    
     private CartDto.CartItemDto toCartItemDto(CartItem item) {
         CartDto.CartItemDto dto = new CartDto.CartItemDto();
         dto.setId(item.getId());
@@ -136,6 +207,10 @@ public class CartService {
         dto.setQuantity(item.getQuantity());
         dto.setUnitPrice(item.getUnitPrice());
         dto.setTotalPrice(item.getTotalPrice());
+        
+        // GST will be calculated in getCart method
+        dto.setGstRate(BigDecimal.ZERO);
+        dto.setGstAmount(BigDecimal.ZERO);
         
         if (item.getVariants() != null && !item.getVariants().isEmpty()) {
             try {

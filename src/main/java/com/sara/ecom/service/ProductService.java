@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,6 +29,9 @@ public class ProductService {
     
     @Autowired
     private PlainProductService plainProductService;
+    
+    @Autowired
+    private com.sara.ecom.repository.DesignRepository designRepository;
     
     public List<ProductDto> getAllProducts(String status, String type, Long categoryId) {
         List<Product> products;
@@ -55,7 +57,29 @@ public class ProductService {
             products = productRepository.findAllWithImages();
         }
         
-        return products.stream().map(this::toDto).collect(Collectors.toList());
+        List<ProductDto> result = products.stream().map(this::toDto).collect(Collectors.toList());
+        
+        // If type is PLAIN and no categoryId specified, filter by fabric categories only
+        // This ensures only fabric products appear in fabric selection
+        if (typeEnum == Product.ProductType.PLAIN && categoryId == null) {
+            // Get all fabric category IDs (use ACTIVE status for categories)
+            List<Category> fabricCategories = categoryRepository.findByIsFabricTrueAndStatus(Category.Status.ACTIVE);
+            List<Long> fabricCategoryIds = fabricCategories.stream()
+                .map(Category::getId)
+                .collect(Collectors.toList());
+            
+            // Filter products to only include those in fabric categories
+            if (!fabricCategoryIds.isEmpty()) {
+                result = result.stream()
+                    .filter(p -> p.getCategoryId() != null && fabricCategoryIds.contains(p.getCategoryId()))
+                    .collect(Collectors.toList());
+            } else {
+                // If no fabric categories exist, return empty list
+                result = new ArrayList<>();
+            }
+        }
+        
+        return result;
     }
     
     @Transactional(readOnly = true)
@@ -189,6 +213,122 @@ public class ProductService {
         return toDtoWithDetails(saved);
     }
     
+    /**
+     * Creates a Digital Product from a Design Product.
+     * This allows users to purchase just the design file without the physical product.
+     */
+    @Transactional
+    public ProductDto createDigitalProductFromDesign(Long designProductId, BigDecimal digitalPrice) {
+        // Get the Design Product
+        Product designProduct = productRepository.findByIdWithImages(designProductId)
+                .orElseThrow(() -> new RuntimeException("Design Product not found with id: " + designProductId));
+        
+        if (designProduct.getType() != Product.ProductType.DESIGNED) {
+            throw new RuntimeException("Product is not a Design Product");
+        }
+        
+        // Get the Design entity if designId exists, otherwise use product images
+        Design design = null;
+        String designFileUrl = null;
+        
+        if (designProduct.getDesignId() != null) {
+            design = designRepository.findById(designProduct.getDesignId())
+                    .orElse(null);
+            if (design != null && design.getImage() != null) {
+                designFileUrl = design.getImage();
+            }
+        }
+        
+        // If no design file from Design entity, use first product image
+        if (designFileUrl == null && designProduct.getImages() != null && !designProduct.getImages().isEmpty()) {
+            designFileUrl = designProduct.getImages().get(0).getImageUrl();
+        }
+        
+        // If still no file, throw error
+        if (designFileUrl == null) {
+            throw new RuntimeException("Design Product does not have a design file or image available for digital download");
+        }
+        
+        // Check if Digital Product already exists for this Design Product
+        Product existingDigital = productRepository.findBySourceDesignProductId(designProductId)
+                .orElse(null);
+        
+        if (existingDigital != null) {
+            // Update price if different
+            if (digitalPrice != null && !digitalPrice.equals(existingDigital.getPrice())) {
+                existingDigital.setPrice(digitalPrice);
+                existingDigital = productRepository.save(existingDigital);
+            }
+            return toDtoWithDetails(existingDigital);
+        }
+        
+        // Create new Digital Product
+        Product digitalProduct = new Product();
+        digitalProduct.setName(designProduct.getName() + " (Digital Design)");
+        digitalProduct.setType(Product.ProductType.DIGITAL);
+        digitalProduct.setCategoryId(designProduct.getCategoryId()); // Same category
+        digitalProduct.setDescription(designProduct.getDescription() != null ? 
+            designProduct.getDescription() + " - Digital download only." : 
+            "Digital download of this design.");
+        digitalProduct.setStatus(Product.Status.ACTIVE);
+        digitalProduct.setPrice(digitalPrice != null ? digitalPrice : 
+            (designProduct.getDesignPrice() != null ? designProduct.getDesignPrice() : BigDecimal.ZERO));
+        digitalProduct.setFileUrl(designFileUrl); // Use design image or product image as downloadable file
+        digitalProduct.setSourceDesignProductId(designProductId); // Link to source Design Product
+        
+        // Copy images from design product
+        if (designProduct.getImages() != null && !designProduct.getImages().isEmpty()) {
+            for (ProductImage img : designProduct.getImages()) {
+                ProductImage newImg = new ProductImage();
+                newImg.setImageUrl(img.getImageUrl());
+                newImg.setMediaType(img.getMediaType());
+                newImg.setDisplayOrder(img.getDisplayOrder());
+                digitalProduct.addImage(newImg);
+            }
+        } else if (designFileUrl != null) {
+            // Use design file as product image
+            ProductImage img = new ProductImage();
+            img.setImageUrl(designFileUrl);
+            img.setDisplayOrder(0);
+            digitalProduct.addImage(img);
+        }
+        
+        // Generate unique slug
+        String baseSlug = generateSlug(digitalProduct.getName());
+        String slug = baseSlug;
+        int counter = 1;
+        while (productRepository.existsBySlug(slug)) {
+            slug = baseSlug + "-" + counter;
+            counter++;
+        }
+        digitalProduct.setSlug(slug);
+        
+        Product saved = productRepository.save(digitalProduct);
+        return toDtoWithDetails(saved);
+    }
+    
+    /**
+     * Gets the Digital Product associated with a Design Product (if exists).
+     */
+    public ProductDto getDigitalProductFromDesign(Long designProductId) {
+        Product digitalProduct = productRepository.findBySourceDesignProductId(designProductId)
+                .orElse(null);
+        if (digitalProduct == null) {
+            return null;
+        }
+        return toDtoWithDetails(digitalProduct);
+    }
+    
+    private String generateSlug(String name) {
+        if (name == null) return "";
+        return name.toLowerCase()
+                .trim()
+                .replaceAll("[^a-z0-9\\s-]", "")
+                .replaceAll("\\s+", "-")
+                .replaceAll("-+", "-")
+                .replaceAll("^-|-$", "");
+    }
+    
     @Transactional
     public void deleteProduct(Long id) {
         if (!productRepository.existsById(id)) {
@@ -236,6 +376,11 @@ public class ProductService {
         
         product.setIsNew(request.getIsNew() != null ? request.getIsNew() : false);
         product.setIsSale(request.getIsSale() != null ? request.getIsSale() : false);
+        
+        // Set GST rate
+        if (request.getGstRate() != null) {
+            product.setGstRate(parseBigDecimal(request.getGstRate()));
+        }
         
         // Parse pricing fields once to keep mappings consistent
         BigDecimal parsedOriginalPrice = parseBigDecimal(request.getOriginalPrice());
@@ -368,6 +513,7 @@ public class ProductService {
         dto.setIsSale(product.getIsSale());
         dto.setOriginalPrice(product.getOriginalPrice());
         dto.setPrice(product.getPrice());
+        dto.setGstRate(product.getGstRate());
         
         // Get category name
         if (product.getCategoryId() != null) {
@@ -412,6 +558,7 @@ public class ProductService {
             case DIGITAL:
                 dto.setPrice(product.getPrice());
                 dto.setFileUrl(product.getFileUrl());
+                dto.setSourceDesignProductId(product.getSourceDesignProductId());
                 break;
         }
         
@@ -514,16 +661,6 @@ public class ProductService {
         dto.setContent(section.getContent());
         dto.setDisplayOrder(section.getDisplayOrder());
         return dto;
-    }
-    
-    private String generateSlug(String name) {
-        if (name == null) return "";
-        return name.toLowerCase()
-                .trim()
-                .replaceAll("[^a-z0-9\\s-]", "") // Remove special characters
-                .replaceAll("\\s+", "-") // Replace spaces with hyphens
-                .replaceAll("-+", "-") // Replace multiple hyphens with single
-                .replaceAll("^-|-$", ""); // Remove leading/trailing hyphens
     }
     
     /**

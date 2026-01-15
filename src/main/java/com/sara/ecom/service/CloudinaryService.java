@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -90,6 +92,47 @@ public class CloudinaryService {
             if (publicId != null) {
                 cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
             }
+        }
+    }
+    
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listAllImages(String folder) throws IOException {
+        try {
+            Map<String, Object> params = ObjectUtils.asMap(
+                "resource_type", "image",
+                "type", "upload",
+                "max_results", 500
+            );
+            
+            if (folder != null && !folder.isEmpty()) {
+                params.put("prefix", folder);
+            }
+            
+            Map<String, Object> result = cloudinary.api().resources(params);
+            List<Map<String, Object>> resources = (List<Map<String, Object>>) result.get("resources");
+            
+            if (resources == null) {
+                return new ArrayList<>();
+            }
+            
+            List<Map<String, Object>> images = new ArrayList<>();
+            for (Map<String, Object> resource : resources) {
+                Map<String, Object> imageInfo = new java.util.HashMap<>();
+                imageInfo.put("url", resource.get("secure_url"));
+                imageInfo.put("publicId", resource.get("public_id"));
+                imageInfo.put("format", resource.get("format"));
+                imageInfo.put("width", resource.get("width"));
+                imageInfo.put("height", resource.get("height"));
+                imageInfo.put("bytes", resource.get("bytes"));
+                imageInfo.put("createdAt", resource.get("created_at"));
+                imageInfo.put("folder", resource.get("folder"));
+                images.add(imageInfo);
+            }
+            
+            return images;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ArrayList<>();
         }
     }
     

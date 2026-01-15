@@ -17,4 +17,6 @@ public class CategoryRequest {
     private String description;
     
     private Integer displayOrder;
+    
+    private Boolean isFabric;
 }

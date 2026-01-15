@@ -18,14 +18,18 @@ public class UserService {
     private final UserRepository userRepository;
     
     public UserDto getUserProfile(String email) {
-        User user = userRepository.findByEmail(email)
+        // Normalize email to lowercase
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : null;
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return UserDto.fromEntity(user);
     }
     
     @Transactional
     public UserDto updateUserProfile(String email, UpdateUserRequest request) {
-        User user = userRepository.findByEmail(email)
+        // Normalize email to lowercase
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : null;
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
         if (request.getFirstName() != null) {
@@ -73,7 +77,9 @@ public class UserService {
     
     @Transactional
     public UserDto updateUserStatus(String email, String status) {
-        User user = userRepository.findByEmail(email)
+        // Normalize email to lowercase
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : null;
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         user.setStatus(User.UserStatus.valueOf(status.toUpperCase()));
         user = userRepository.save(user);

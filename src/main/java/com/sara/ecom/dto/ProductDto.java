@@ -1,0 +1,293 @@
+package com.sara.ecom.dto;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+
+public class ProductDto {
+    private Long id;
+    private String name;
+    private String slug;
+    private String type;
+    private Long categoryId;
+    private String categoryName;
+    private String description;
+    private String status;
+    private List<String> images;
+    private List<MediaDto> media;
+    private List<DetailSectionDto> detailSections;
+    
+    // For DESIGNED products
+    private BigDecimal designPrice;
+    private Long designId;
+    private List<Long> recommendedFabricIds;
+    private List<PlainProductDto> recommendedFabrics;
+    
+    // For PLAIN products
+    private Long plainProductId;
+    private PlainProductDto plainProduct;
+    
+    // For DIGITAL products
+    private BigDecimal price;
+    private BigDecimal pricePerMeter;
+    private String fileUrl;
+    
+    // Common display flags
+    private Boolean isNew;
+    private Boolean isSale;
+    private BigDecimal originalPrice;
+    
+    public static class DetailSectionDto {
+        private Long id;
+        private String title;
+        private String content;
+        private Integer displayOrder;
+        
+        public Long getId() {
+            return id;
+        }
+        
+        public void setId(Long id) {
+            this.id = id;
+        }
+        
+        public String getTitle() {
+            return title;
+        }
+        
+        public void setTitle(String title) {
+            this.title = title;
+        }
+        
+        public String getContent() {
+            return content;
+        }
+        
+        public void setContent(String content) {
+            this.content = content;
+        }
+        
+        public Integer getDisplayOrder() {
+            return displayOrder;
+        }
+        
+        public void setDisplayOrder(Integer displayOrder) {
+            this.displayOrder = displayOrder;
+        }
+    }
+    
+    public static class MediaDto {
+        private String url;
+        private String type; // "image" or "video"
+        private Integer displayOrder;
+        
+        public String getUrl() {
+            return url;
+        }
+        
+        public void setUrl(String url) {
+            this.url = url;
+        }
+        
+        public String getType() {
+            return type;
+        }
+        
+        public void setType(String type) {
+            this.type = type;
+        }
+        
+        public Integer getDisplayOrder() {
+            return displayOrder;
+        }
+        
+        public void setDisplayOrder(Integer displayOrder) {
+            this.displayOrder = displayOrder;
+        }
+    }
+    
+    // Getters and Setters
+    public Long getId() {
+        return id;
+    }
+    
+    public void setId(Long id) {
+        this.id = id;
+    }
+    
+    public String getName() {
+        return name;
+    }
+    
+    public void setName(String name) {
+        this.name = name;
+    }
+    
+    public String getType() {
+        return type;
+    }
+    
+    public void setType(String type) {
+        this.type = type;
+    }
+    
+    public Long getCategoryId() {
+        return categoryId;
+    }
+    
+    public void setCategoryId(Long categoryId) {
+        this.categoryId = categoryId;
+    }
+    
+    public String getCategoryName() {
+        return categoryName;
+    }
+    
+    public void setCategoryName(String categoryName) {
+        this.categoryName = categoryName;
+    }
+    
+    public String getDescription() {
+        return description;
+    }
+    
+    public void setDescription(String description) {
+        this.description = description;
+    }
+    
+    public String getStatus() {
+        return status;
+    }
+    
+    public void setStatus(String status) {
+        this.status = status;
+    }
+    
+    public List<String> getImages() {
+        return images;
+    }
+    
+    public void setImages(List<String> images) {
+        this.images = images;
+    }
+    
+    public List<MediaDto> getMedia() {
+        return media;
+    }
+    
+    public void setMedia(List<MediaDto> media) {
+        this.media = media;
+    }
+    
+    public List<DetailSectionDto> getDetailSections() {
+        return detailSections;
+    }
+    
+    public void setDetailSections(List<DetailSectionDto> detailSections) {
+        this.detailSections = detailSections;
+    }
+    
+    public BigDecimal getDesignPrice() {
+        return designPrice;
+    }
+    
+    public void setDesignPrice(BigDecimal designPrice) {
+        this.designPrice = designPrice;
+    }
+    
+    public Long getDesignId() {
+        return designId;
+    }
+    
+    public void setDesignId(Long designId) {
+        this.designId = designId;
+    }
+    
+    public List<Long> getRecommendedFabricIds() {
+        return recommendedFabricIds;
+    }
+    
+    public void setRecommendedFabricIds(List<Long> recommendedFabricIds) {
+        this.recommendedFabricIds = recommendedFabricIds;
+    }
+    
+    public List<PlainProductDto> getRecommendedFabrics() {
+        return recommendedFabrics;
+    }
+    
+    public void setRecommendedFabrics(List<PlainProductDto> recommendedFabrics) {
+        this.recommendedFabrics = recommendedFabrics;
+    }
+    
+    public Long getPlainProductId() {
+        return plainProductId;
+    }
+    
+    public void setPlainProductId(Long plainProductId) {
+        this.plainProductId = plainProductId;
+    }
+    
+    public PlainProductDto getPlainProduct() {
+        return plainProduct;
+    }
+    
+    public void setPlainProduct(PlainProductDto plainProduct) {
+        this.plainProduct = plainProduct;
+    }
+    
+    public BigDecimal getPrice() {
+        return price;
+    }
+    
+    public void setPrice(BigDecimal price) {
+        this.price = price;
+    }
+
+    public BigDecimal getPricePerMeter() {
+        return pricePerMeter;
+    }
+
+    public void setPricePerMeter(BigDecimal pricePerMeter) {
+        this.pricePerMeter = pricePerMeter;
+    }
+    
+    public String getFileUrl() {
+        return fileUrl;
+    }
+    
+    public void setFileUrl(String fileUrl) {
+        this.fileUrl = fileUrl;
+    }
+    
+    public Boolean getIsNew() {
+        return isNew;
+    }
+    
+    public void setIsNew(Boolean isNew) {
+        this.isNew = isNew;
+    }
+    
+    public Boolean getIsSale() {
+        return isSale;
+    }
+    
+    public void setIsSale(Boolean isSale) {
+        this.isSale = isSale;
+    }
+    
+    public BigDecimal getOriginalPrice() {
+        return originalPrice;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
+    public void setOriginalPrice(BigDecimal originalPrice) {
+        this.originalPrice = originalPrice;
+    }
+}

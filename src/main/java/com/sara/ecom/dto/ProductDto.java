@@ -16,6 +16,8 @@ public class ProductDto {
     private List<String> images;
     private List<MediaDto> media;
     private List<DetailSectionDto> detailSections;
+    private List<CustomFieldDto> customFields;
+    private List<VariantDto> variants;
     
     // For DESIGNED products
     private BigDecimal designPrice;
@@ -105,6 +107,132 @@ public class ProductDto {
             this.displayOrder = displayOrder;
         }
     }
+
+    public static class CustomFieldDto {
+        private Long id;
+        private String label;
+        private String fieldType;
+        private String placeholder;
+        private boolean isRequired;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+
+        public void setLabel(String label) {
+            this.label = label;
+        }
+
+        public String getFieldType() {
+            return fieldType;
+        }
+
+        public void setFieldType(String fieldType) {
+            this.fieldType = fieldType;
+        }
+
+        public String getPlaceholder() {
+            return placeholder;
+        }
+
+        public void setPlaceholder(String placeholder) {
+            this.placeholder = placeholder;
+        }
+
+        public boolean isRequired() {
+            return isRequired;
+        }
+
+        public void setRequired(boolean required) {
+            isRequired = required;
+        }
+    }
+
+    public static class VariantDto {
+        private Long id;
+        private String name;
+        private String type;
+        private String unit;
+        private List<VariantOptionDto> options;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+
+        public String getUnit() {
+            return unit;
+        }
+
+        public void setUnit(String unit) {
+            this.unit = unit;
+        }
+
+        public List<VariantOptionDto> getOptions() {
+            return options;
+        }
+
+        public void setOptions(List<VariantOptionDto> options) {
+            this.options = options;
+        }
+    }
+
+    public static class VariantOptionDto {
+        private Long id;
+        private String value;
+        private BigDecimal priceModifier;
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
+        }
+
+        public BigDecimal getPriceModifier() {
+            return priceModifier;
+        }
+
+        public void setPriceModifier(BigDecimal priceModifier) {
+            this.priceModifier = priceModifier;
+        }
+    }
     
     // Getters and Setters
     public Long getId() {
@@ -185,6 +313,22 @@ public class ProductDto {
     
     public void setDetailSections(List<DetailSectionDto> detailSections) {
         this.detailSections = detailSections;
+    }
+
+    public List<CustomFieldDto> getCustomFields() {
+        return customFields;
+    }
+
+    public void setCustomFields(List<CustomFieldDto> customFields) {
+        this.customFields = customFields;
+    }
+
+    public List<VariantDto> getVariants() {
+        return variants;
+    }
+
+    public void setVariants(List<VariantDto> variants) {
+        this.variants = variants;
     }
     
     public BigDecimal getDesignPrice() {

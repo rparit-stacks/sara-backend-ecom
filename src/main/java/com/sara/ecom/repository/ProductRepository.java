@@ -33,6 +33,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     // Separate query for detail sections
     @Query("SELECT p FROM Product p LEFT JOIN FETCH p.detailSections WHERE p.id = :id")
     Optional<Product> findByIdWithDetailSections(@Param("id") Long id);
+
+    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.customFields WHERE p.id = :id")
+    Optional<Product> findByIdWithCustomFields(@Param("id") Long id);
+
+    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.variants WHERE p.id = :id")
+    Optional<Product> findByIdWithVariants(@Param("id") Long id);
     
     // Find by slug
     Optional<Product> findBySlug(String slug);

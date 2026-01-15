@@ -12,6 +12,8 @@ public class ProductRequest {
     private List<String> images; // Deprecated - use media instead
     private List<MediaRequest> media;
     private List<DetailSectionRequest> detailSections;
+    private List<CustomFieldRequest> customFields;
+    private List<VariantRequest> variants;
     
     // For DESIGNED products
     private BigDecimal designPrice;
@@ -90,6 +92,105 @@ public class ProductRequest {
             this.displayOrder = displayOrder;
         }
     }
+
+    public static class CustomFieldRequest {
+        private String label;
+        private String fieldType;
+        private String placeholder;
+        private boolean isRequired;
+
+        public String getLabel() {
+            return label;
+        }
+
+        public void setLabel(String label) {
+            this.label = label;
+        }
+
+        public String getFieldType() {
+            return fieldType;
+        }
+
+        public void setFieldType(String fieldType) {
+            this.fieldType = fieldType;
+        }
+
+        public String getPlaceholder() {
+            return placeholder;
+        }
+
+        public void setPlaceholder(String placeholder) {
+            this.placeholder = placeholder;
+        }
+
+        public boolean isRequired() {
+            return isRequired;
+        }
+
+        public void setRequired(boolean required) {
+            isRequired = required;
+        }
+    }
+
+    public static class VariantRequest {
+        private String name;
+        private String type;
+        private String unit;
+        private List<VariantOptionRequest> options;
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+
+        public String getUnit() {
+            return unit;
+        }
+
+        public void setUnit(String unit) {
+            this.unit = unit;
+        }
+
+        public List<VariantOptionRequest> getOptions() {
+            return options;
+        }
+
+        public void setOptions(List<VariantOptionRequest> options) {
+            this.options = options;
+        }
+    }
+
+    public static class VariantOptionRequest {
+        private String value;
+        private BigDecimal priceModifier;
+
+        public String getValue() {
+            return value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
+        }
+
+        public BigDecimal getPriceModifier() {
+            return priceModifier;
+        }
+
+        public void setPriceModifier(BigDecimal priceModifier) {
+            this.priceModifier = priceModifier;
+        }
+    }
     
     // Getters and Setters
     public String getName() {
@@ -146,6 +247,22 @@ public class ProductRequest {
     
     public void setDetailSections(List<DetailSectionRequest> detailSections) {
         this.detailSections = detailSections;
+    }
+
+    public List<CustomFieldRequest> getCustomFields() {
+        return customFields;
+    }
+
+    public void setCustomFields(List<CustomFieldRequest> customFields) {
+        this.customFields = customFields;
+    }
+
+    public List<VariantRequest> getVariants() {
+        return variants;
+    }
+
+    public void setVariants(List<VariantRequest> variants) {
+        this.variants = variants;
     }
     
     public BigDecimal getDesignPrice() {

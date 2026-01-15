@@ -67,6 +67,14 @@ public class ProductService {
         // Load detail sections separately
         productRepository.findByIdWithDetailSections(id).ifPresent(p -> 
             product.setDetailSections(p.getDetailSections()));
+
+        // Load custom fields separately
+        productRepository.findByIdWithCustomFields(id).ifPresent(p ->
+            product.setCustomFields(p.getCustomFields()));
+
+        // Load variants separately
+        productRepository.findByIdWithVariants(id).ifPresent(p ->
+            product.setVariants(p.getVariants()));
         
         return toDtoWithDetails(product);
     }
@@ -82,6 +90,10 @@ public class ProductService {
             product.setImages(p.getImages()));
         productRepository.findByIdWithDetailSections(product.getId()).ifPresent(p -> 
             product.setDetailSections(p.getDetailSections()));
+        productRepository.findByIdWithCustomFields(product.getId()).ifPresent(p ->
+            product.setCustomFields(p.getCustomFields()));
+        productRepository.findByIdWithVariants(product.getId()).ifPresent(p ->
+            product.setVariants(p.getVariants()));
         
         return toDtoWithDetails(product);
     }
@@ -148,6 +160,14 @@ public class ProductService {
         // Load detail sections separately
         productRepository.findByIdWithDetailSections(id).ifPresent(p -> 
             product.setDetailSections(p.getDetailSections()));
+
+        // Load custom fields separately
+        productRepository.findByIdWithCustomFields(id).ifPresent(p ->
+            product.setCustomFields(p.getCustomFields()));
+
+        // Load variants separately
+        productRepository.findByIdWithVariants(id).ifPresent(p ->
+            product.setVariants(p.getVariants()));
         
         // Validate that category is a leaf category (has no subcategories) if category is being changed
         if (request.getCategoryId() != null && !request.getCategoryId().equals(product.getCategoryId())) {
@@ -160,6 +180,9 @@ public class ProductService {
         product.getImages().clear();
         product.getDetailSections().clear();
         product.getRecommendedFabricIds().clear();
+        product.getCustomFields().clear();
+        product.getVariants().clear();
+        product.getCombinations().clear();
         
         mapRequestToProduct(request, product);
         Product saved = productRepository.save(product);
@@ -296,6 +319,40 @@ public class ProductService {
                 product.addDetailSection(section);
             }
         }
+
+        // Custom Fields
+        if (request.getCustomFields() != null) {
+            product.getCustomFields().clear();
+            for (ProductRequest.CustomFieldRequest fieldReq : request.getCustomFields()) {
+                ProductCustomField field = new ProductCustomField();
+                field.setLabel(fieldReq.getLabel());
+                field.setFieldType(fieldReq.getFieldType());
+                field.setPlaceholder(fieldReq.getPlaceholder());
+                field.setRequired(fieldReq.isRequired());
+                product.addCustomField(field);
+            }
+        }
+
+        // Variants
+        if (request.getVariants() != null) {
+            product.getVariants().clear();
+            for (ProductRequest.VariantRequest variantReq : request.getVariants()) {
+                ProductVariant variant = new ProductVariant();
+                variant.setName(variantReq.getName());
+                variant.setType(variantReq.getType());
+                variant.setUnit(variantReq.getUnit());
+                
+                if (variantReq.getOptions() != null) {
+                    for (ProductRequest.VariantOptionRequest optionReq : variantReq.getOptions()) {
+                        ProductVariantOption option = new ProductVariantOption();
+                        option.setValue(optionReq.getValue());
+                        option.setPriceModifier(optionReq.getPriceModifier());
+                        variant.addOption(option);
+                    }
+                }
+                product.addVariant(variant);
+            }
+        }
     }
     
     private ProductDto toDto(Product product) {
@@ -370,12 +427,74 @@ public class ProductService {
                     .map(this::toDetailSectionDto)
                     .collect(Collectors.toList()));
         }
+
+        // Custom Fields
+        if (product.getCustomFields() != null) {
+            dto.setCustomFields(product.getCustomFields().stream()
+                    .map(field -> {
+                        ProductDto.CustomFieldDto fieldDto = new ProductDto.CustomFieldDto();
+                        fieldDto.setId(field.getId());
+                        fieldDto.setLabel(field.getLabel());
+                        fieldDto.setFieldType(field.getFieldType());
+                        fieldDto.setPlaceholder(field.getPlaceholder());
+                        fieldDto.setRequired(field.isRequired());
+                        return fieldDto;
+                    })
+                    .collect(Collectors.toList()));
+        }
+
+        // Variants
+        if (product.getVariants() != null) {
+            dto.setVariants(product.getVariants().stream()
+                    .map(variant -> {
+                        ProductDto.VariantDto variantDto = new ProductDto.VariantDto();
+                        variantDto.setId(variant.getId());
+                        variantDto.setName(variant.getName());
+                        variantDto.setType(variant.getType());
+                        variantDto.setUnit(variant.getUnit());
+                        
+                        if (variant.getOptions() != null) {
+                            variantDto.setOptions(variant.getOptions().stream()
+                                    .map(option -> {
+                                        ProductDto.VariantOptionDto optionDto = new ProductDto.VariantOptionDto();
+                                        optionDto.setId(option.getId());
+                                        optionDto.setValue(option.getValue());
+                                        optionDto.setPriceModifier(option.getPriceModifier());
+                                        return optionDto;
+                                    })
+                                    .collect(Collectors.toList()));
+                        }
+                        return variantDto;
+                    })
+                    .collect(Collectors.toList()));
+        }
         
         // Load related data for DESIGNED products
+        // recommendedFabricIds now points to Product IDs (type=PLAIN), not PlainProduct IDs
         if (product.getType() == Product.ProductType.DESIGNED && 
             product.getRecommendedFabricIds() != null && 
             !product.getRecommendedFabricIds().isEmpty()) {
-            List<PlainProductDto> fabrics = plainProductService.getPlainProductsByIds(product.getRecommendedFabricIds());
+            // Fetch products where type=PLAIN and IDs match recommendedFabricIds
+            List<Product> fabricProducts = productRepository.findByIdIn(product.getRecommendedFabricIds())
+                .stream()
+                .filter(p -> p.getType() == Product.ProductType.PLAIN)
+                .collect(Collectors.toList());
+            
+            // Convert Product entities to PlainProductDto format for frontend compatibility
+            List<PlainProductDto> fabrics = fabricProducts.stream()
+                .map(p -> {
+                    PlainProductDto fabricDto = new PlainProductDto();
+                    fabricDto.setId(p.getId());
+                    fabricDto.setName(p.getName());
+                    fabricDto.setDescription(p.getDescription());
+                    fabricDto.setImage(p.getImages() != null && !p.getImages().isEmpty() 
+                        ? p.getImages().get(0).getImageUrl() : null);
+                    fabricDto.setPricePerMeter(p.getPrice() != null ? p.getPrice() : BigDecimal.ZERO);
+                    fabricDto.setCategoryId(p.getCategoryId());
+                    fabricDto.setStatus(p.getStatus().name());
+                    return fabricDto;
+                })
+                .collect(Collectors.toList());
             dto.setRecommendedFabrics(fabrics);
         }
         

@@ -28,4 +28,6 @@ public interface PlainProductRepository extends JpaRepository<PlainProduct, Long
     List<PlainProduct> findAllWithVariants();
     
     List<PlainProduct> findByIdIn(List<Long> ids);
+
+    PlainProduct getAllByStatus(PlainProduct.Status status);
 }

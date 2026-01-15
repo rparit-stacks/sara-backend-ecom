@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -172,5 +173,14 @@ public class PlainProductService {
         dto.setValue(option.getValue());
         dto.setPriceModifier(option.getPriceModifier());
         return dto;
+    }
+
+    public List<PlainProductDto> getAllPlainProductsList(String active) {
+        List<PlainProductDto> plainProductDtoList = new ArrayList<>();
+        List<PlainProduct> plainProductList = plainProductRepository.findByStatus(PlainProduct.Status.valueOf(active.toUpperCase()));
+        for (PlainProduct plainProduct : plainProductList) {
+            plainProductDtoList.add(toDto(plainProduct));
+        }
+        return plainProductDtoList;
     }
 }

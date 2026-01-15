@@ -68,6 +68,15 @@ public class Product {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("displayOrder ASC")
     private List<ProductDetailSection> detailSections = new ArrayList<>();
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductCustomField> customFields = new ArrayList<>();
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductVariant> variants = new ArrayList<>();
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductVariantCombination> combinations = new ArrayList<>();
     
     // For DESIGNED products - recommended fabrics
     @ElementCollection
@@ -236,6 +245,30 @@ public class Product {
     public void setDetailSections(List<ProductDetailSection> detailSections) {
         this.detailSections = detailSections;
     }
+
+    public List<ProductCustomField> getCustomFields() {
+        return customFields;
+    }
+
+    public void setCustomFields(List<ProductCustomField> customFields) {
+        this.customFields = customFields;
+    }
+
+    public List<ProductVariant> getVariants() {
+        return variants;
+    }
+
+    public void setVariants(List<ProductVariant> variants) {
+        this.variants = variants;
+    }
+
+    public List<ProductVariantCombination> getCombinations() {
+        return combinations;
+    }
+
+    public void setCombinations(List<ProductVariantCombination> combinations) {
+        this.combinations = combinations;
+    }
     
     public List<Long> getRecommendedFabricIds() {
         return recommendedFabricIds;
@@ -280,5 +313,35 @@ public class Product {
     public void removeDetailSection(ProductDetailSection section) {
         detailSections.remove(section);
         section.setProduct(null);
+    }
+
+    public void addCustomField(ProductCustomField field) {
+        customFields.add(field);
+        field.setProduct(this);
+    }
+
+    public void removeCustomField(ProductCustomField field) {
+        customFields.remove(field);
+        field.setProduct(null);
+    }
+
+    public void addVariant(ProductVariant variant) {
+        variants.add(variant);
+        variant.setProduct(this);
+    }
+
+    public void removeVariant(ProductVariant variant) {
+        variants.remove(variant);
+        variant.setProduct(null);
+    }
+
+    public void addCombination(ProductVariantCombination combination) {
+        combinations.add(combination);
+        combination.setProduct(this);
+    }
+
+    public void removeCombination(ProductVariantCombination combination) {
+        combinations.remove(combination);
+        combination.setProduct(null);
     }
 }

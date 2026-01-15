@@ -382,6 +382,11 @@ public class ProductService {
             product.setGstRate(parseBigDecimal(request.getGstRate()));
         }
         
+        // Set HSN code
+        if (request.getHsnCode() != null) {
+            product.setHsnCode(request.getHsnCode());
+        }
+        
         // Parse pricing fields once to keep mappings consistent
         BigDecimal parsedOriginalPrice = parseBigDecimal(request.getOriginalPrice());
         BigDecimal parsedPrice = parseBigDecimal(request.getPrice());
@@ -514,6 +519,7 @@ public class ProductService {
         dto.setOriginalPrice(product.getOriginalPrice());
         dto.setPrice(product.getPrice());
         dto.setGstRate(product.getGstRate());
+        dto.setHsnCode(product.getHsnCode());
         
         // Get category name
         if (product.getCategoryId() != null) {

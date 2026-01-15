@@ -69,6 +69,21 @@ public class Order {
     @Column(columnDefinition = "TEXT")
     private String notes;
     
+    @Column(name = "swipe_invoice_id")
+    private String swipeInvoiceId;
+    
+    @Column(name = "swipe_invoice_number")
+    private String swipeInvoiceNumber;
+    
+    @Column(name = "swipe_irn")
+    private String swipeIrn;
+    
+    @Column(name = "swipe_qr_code", columnDefinition = "TEXT")
+    private String swipeQrCode;
+    
+    @Column(name = "swipe_invoice_url", columnDefinition = "TEXT")
+    private String swipeInvoiceUrl;
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
@@ -255,6 +270,46 @@ public class Order {
     
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+    
+    public String getSwipeInvoiceId() {
+        return swipeInvoiceId;
+    }
+    
+    public void setSwipeInvoiceId(String swipeInvoiceId) {
+        this.swipeInvoiceId = swipeInvoiceId;
+    }
+    
+    public String getSwipeInvoiceNumber() {
+        return swipeInvoiceNumber;
+    }
+    
+    public void setSwipeInvoiceNumber(String swipeInvoiceNumber) {
+        this.swipeInvoiceNumber = swipeInvoiceNumber;
+    }
+    
+    public String getSwipeIrn() {
+        return swipeIrn;
+    }
+    
+    public void setSwipeIrn(String swipeIrn) {
+        this.swipeIrn = swipeIrn;
+    }
+    
+    public String getSwipeQrCode() {
+        return swipeQrCode;
+    }
+    
+    public void setSwipeQrCode(String swipeQrCode) {
+        this.swipeQrCode = swipeQrCode;
+    }
+    
+    public String getSwipeInvoiceUrl() {
+        return swipeInvoiceUrl;
+    }
+    
+    public void setSwipeInvoiceUrl(String swipeInvoiceUrl) {
+        this.swipeInvoiceUrl = swipeInvoiceUrl;
     }
     
     public LocalDateTime getCreatedAt() {

@@ -61,6 +61,7 @@ public class UserAddressService {
                         UserAddress.AddressType.HOME)
                 .isDefault(request.getIsDefault() != null ? request.getIsDefault() : false)
                 .landmark(request.getLandmark())
+                .gstin(request.getGstin())
                 .build();
         
         address = addressRepository.save(address);
@@ -93,6 +94,9 @@ public class UserAddressService {
         }
         if (request.getLandmark() != null) {
             address.setLandmark(request.getLandmark());
+        }
+        if (request.getGstin() != null) {
+            address.setGstin(request.getGstin());
         }
         
         address = addressRepository.save(address);

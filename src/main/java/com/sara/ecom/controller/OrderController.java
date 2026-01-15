@@ -97,6 +97,11 @@ public class OrderController {
         return ResponseEntity.ok(orderService.updatePaymentStatus(id, paymentStatus, paymentId));
     }
     
+    @PostMapping("/admin/orders/{id}/retry-swipe-invoice")
+    public ResponseEntity<OrderDto> retrySwipeInvoice(@PathVariable Long id) {
+        return ResponseEntity.ok(orderService.retrySwipeInvoice(id));
+    }
+    
     private String getUserEmailFromToken(String authHeader) {
         String token = authHeader.replace("Bearer ", "");
         String email = jwtService.extractEmail(token);

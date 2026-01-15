@@ -40,6 +40,9 @@ public class OrderService {
     @Autowired
     private UserRepository userRepository;
     
+    @Autowired
+    private SwipeService swipeService;
+    
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     @Transactional
@@ -275,8 +278,35 @@ public class OrderService {
     public OrderDto updateOrderStatus(Long orderId, String status) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
-        order.setStatus(Order.OrderStatus.valueOf(status.toUpperCase()));
-        return toOrderDto(orderRepository.save(order));
+        
+        Order.OrderStatus oldStatus = order.getStatus();
+        Order.OrderStatus newStatus = Order.OrderStatus.valueOf(status.toUpperCase());
+        order.setStatus(newStatus);
+        
+        Order savedOrder = orderRepository.save(order);
+        
+        // If order is being confirmed and Swipe is enabled, create invoice
+        if (oldStatus != Order.OrderStatus.CONFIRMED && newStatus == Order.OrderStatus.CONFIRMED) {
+            try {
+                com.sara.ecom.dto.SwipeDto.SwipeInvoiceResponse swipeResponse = swipeService.createInvoice(savedOrder);
+                if (swipeResponse != null && swipeResponse.getSuccess() != null && swipeResponse.getSuccess()) {
+                    if (swipeResponse.getData() != null) {
+                        savedOrder.setSwipeInvoiceId(swipeResponse.getData().getHashId());
+                        savedOrder.setSwipeInvoiceNumber(swipeResponse.getData().getSerialNumber());
+                        savedOrder.setSwipeIrn(swipeResponse.getData().getIrn());
+                        savedOrder.setSwipeQrCode(swipeResponse.getData().getQrCode());
+                        savedOrder.setSwipeInvoiceUrl(swipeResponse.getData().getPdfUrl());
+                        savedOrder = orderRepository.save(savedOrder);
+                    }
+                }
+            } catch (Exception e) {
+                // Log error but don't fail order update
+                System.err.println("Error creating Swipe invoice: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        return toOrderDto(savedOrder);
     }
     
     @Transactional
@@ -288,6 +318,30 @@ public class OrderService {
             order.setPaymentId(paymentId);
         }
         return toOrderDto(orderRepository.save(order));
+    }
+    
+    @Transactional
+    public OrderDto retrySwipeInvoice(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        
+        try {
+            com.sara.ecom.dto.SwipeDto.SwipeInvoiceResponse swipeResponse = swipeService.createInvoice(order);
+            if (swipeResponse != null && swipeResponse.getSuccess() != null && swipeResponse.getSuccess()) {
+                if (swipeResponse.getData() != null) {
+                    order.setSwipeInvoiceId(swipeResponse.getData().getHashId());
+                    order.setSwipeInvoiceNumber(swipeResponse.getData().getSerialNumber());
+                    order.setSwipeIrn(swipeResponse.getData().getIrn());
+                    order.setSwipeQrCode(swipeResponse.getData().getQrCode());
+                    order.setSwipeInvoiceUrl(swipeResponse.getData().getPdfUrl());
+                    order = orderRepository.save(order);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error creating Swipe invoice: " + e.getMessage(), e);
+        }
+        
+        return toOrderDto(order);
     }
     
     private OrderDto toOrderDto(Order order) {
@@ -306,6 +360,11 @@ public class OrderService {
         dto.setPaymentStatus(order.getPaymentStatus().name());
         dto.setPaymentMethod(order.getPaymentMethod());
         dto.setNotes(order.getNotes());
+        dto.setSwipeInvoiceId(order.getSwipeInvoiceId());
+        dto.setSwipeInvoiceNumber(order.getSwipeInvoiceNumber());
+        dto.setSwipeIrn(order.getSwipeIrn());
+        dto.setSwipeQrCode(order.getSwipeQrCode());
+        dto.setSwipeInvoiceUrl(order.getSwipeInvoiceUrl());
         dto.setCreatedAt(order.getCreatedAt());
         
         // Parse addresses

@@ -59,6 +59,9 @@ public class UserAddress {
     @Column(name = "landmark")
     private String landmark;
     
+    @Column(name = "gstin", length = 15)
+    private String gstin;
+    
     private LocalDateTime createdAt;
     
     private LocalDateTime updatedAt;

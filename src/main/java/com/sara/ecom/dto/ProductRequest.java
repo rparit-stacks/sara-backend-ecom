@@ -33,6 +33,7 @@ public class ProductRequest {
     private Boolean isSale;
     private BigDecimal originalPrice;
     private BigDecimal gstRate;
+    private String hsnCode;
     
     public static class DetailSectionRequest {
         private String title;
@@ -372,6 +373,14 @@ public class ProductRequest {
 
     public void setGstRate(BigDecimal gstRate) {
         this.gstRate = gstRate;
+    }
+    
+    public String getHsnCode() {
+        return hsnCode;
+    }
+    
+    public void setHsnCode(String hsnCode) {
+        this.hsnCode = hsnCode;
     }
 
     public void setOriginalPrice(BigDecimal originalPrice) {

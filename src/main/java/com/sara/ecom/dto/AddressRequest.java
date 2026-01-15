@@ -34,4 +34,6 @@ public class AddressRequest {
     private Boolean isDefault;
     
     private String landmark;
+    
+    private String gstin; // Optional GSTIN for B2B customers
 }

@@ -40,6 +40,7 @@ public class ProductDto {
     private Boolean isSale;
     private BigDecimal originalPrice;
     private BigDecimal gstRate;
+    private String hsnCode;
     
     public static class DetailSectionDto {
         private Long id;
@@ -451,5 +452,13 @@ public class ProductDto {
     
     public void setGstRate(BigDecimal gstRate) {
         this.gstRate = gstRate;
+    }
+    
+    public String getHsnCode() {
+        return hsnCode;
+    }
+    
+    public void setHsnCode(String hsnCode) {
+        this.hsnCode = hsnCode;
     }
 }

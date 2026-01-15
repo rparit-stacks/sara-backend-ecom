@@ -68,6 +68,9 @@ public class Product {
     @Column(name = "gst_rate", precision = 5, scale = 2)
     private BigDecimal gstRate;
     
+    @Column(name = "hsn_code")
+    private String hsnCode;
+    
     // Getters and Setters
     public BigDecimal getGstRate() {
         return gstRate;
@@ -75,6 +78,14 @@ public class Product {
     
     public void setGstRate(BigDecimal gstRate) {
         this.gstRate = gstRate;
+    }
+    
+    public String getHsnCode() {
+        return hsnCode;
+    }
+    
+    public void setHsnCode(String hsnCode) {
+        this.hsnCode = hsnCode;
     }
     
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)

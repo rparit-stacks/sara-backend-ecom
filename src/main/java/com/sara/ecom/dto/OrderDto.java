@@ -23,6 +23,11 @@ public class OrderDto {
     private String paymentStatus;
     private String paymentMethod;
     private String notes;
+    private String swipeInvoiceId;
+    private String swipeInvoiceNumber;
+    private String swipeIrn;
+    private String swipeQrCode;
+    private String swipeInvoiceUrl;
     private LocalDateTime createdAt;
     
     public static class OrderItemDto {
@@ -100,6 +105,16 @@ public class OrderDto {
     public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+    public String getSwipeInvoiceId() { return swipeInvoiceId; }
+    public void setSwipeInvoiceId(String swipeInvoiceId) { this.swipeInvoiceId = swipeInvoiceId; }
+    public String getSwipeInvoiceNumber() { return swipeInvoiceNumber; }
+    public void setSwipeInvoiceNumber(String swipeInvoiceNumber) { this.swipeInvoiceNumber = swipeInvoiceNumber; }
+    public String getSwipeIrn() { return swipeIrn; }
+    public void setSwipeIrn(String swipeIrn) { this.swipeIrn = swipeIrn; }
+    public String getSwipeQrCode() { return swipeQrCode; }
+    public void setSwipeQrCode(String swipeQrCode) { this.swipeQrCode = swipeQrCode; }
+    public String getSwipeInvoiceUrl() { return swipeInvoiceUrl; }
+    public void setSwipeInvoiceUrl(String swipeInvoiceUrl) { this.swipeInvoiceUrl = swipeInvoiceUrl; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

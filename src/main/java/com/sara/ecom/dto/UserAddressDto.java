@@ -25,6 +25,7 @@ public class UserAddressDto {
     private String addressType;
     private Boolean isDefault;
     private String landmark;
+    private String gstin;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     
@@ -44,6 +45,7 @@ public class UserAddressDto {
                 .addressType(address.getAddressType() != null ? address.getAddressType().name() : null)
                 .isDefault(address.getIsDefault())
                 .landmark(address.getLandmark())
+                .gstin(address.getGstin())
                 .createdAt(address.getCreatedAt())
                 .updatedAt(address.getUpdatedAt())
                 .build();

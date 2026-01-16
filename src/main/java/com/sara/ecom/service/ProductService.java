@@ -3,6 +3,7 @@ package com.sara.ecom.service;
 import com.sara.ecom.dto.PlainProductDto;
 import com.sara.ecom.dto.ProductDto;
 import com.sara.ecom.dto.ProductRequest;
+import com.sara.ecom.dto.CustomConfigDto;
 import com.sara.ecom.entity.*;
 import com.sara.ecom.repository.CategoryRepository;
 import com.sara.ecom.repository.ProductRepository;
@@ -32,6 +33,9 @@ public class ProductService {
     
     @Autowired
     private com.sara.ecom.repository.DesignRepository designRepository;
+    
+    @Autowired
+    private CustomConfigService customConfigService;
     
     public List<ProductDto> getAllProducts(String status, String type, Long categoryId) {
         List<Product> products;
@@ -167,6 +171,162 @@ public class ProductService {
     public ProductDto createDesignedProduct(ProductRequest request) {
         request.setType("DESIGNED");
         return createProduct(request);
+    }
+    
+    /**
+     * Creates a designed product from user-uploaded design with custom config.
+     * This is a public endpoint that uses custom config from admin panel.
+     */
+    @Transactional
+    public ProductDto createDesignedProductFromUpload(ProductRequest request) {
+        // Get custom config from admin panel
+        CustomConfigDto config = customConfigService.getPublicConfig();
+        
+        // Set product type
+        request.setType("DESIGNED");
+        
+        // Use custom config values if not provided in request
+        String baseName = config.getPageTitle() != null && !config.getPageTitle().trim().isEmpty() 
+            ? config.getPageTitle() : "Custom Design";
+        
+        // Set clean display name (without unique suffix)
+        if (request.getName() == null || request.getName().trim().isEmpty()) {
+            request.setName(baseName);
+        }
+        
+        if (request.getDescription() == null || request.getDescription().trim().isEmpty()) {
+            request.setDescription(config.getPageDescription() != null && !config.getPageDescription().trim().isEmpty()
+                ? config.getPageDescription() : "Your custom design");
+        }
+        
+        // Set design price from config
+        if (request.getDesignPrice() == null && config.getDesignPrice() != null) {
+            request.setDesignPrice(config.getDesignPrice());
+        }
+        
+        // Set status to ACTIVE by default for user-uploaded products
+        if (request.getStatus() == null) {
+            request.setStatus("ACTIVE");
+        }
+        
+        // Ensure media/images are set if provided
+        if (request.getMedia() == null || request.getMedia().isEmpty()) {
+            // If images are provided, convert to media format
+            if (request.getImages() != null && !request.getImages().isEmpty()) {
+                List<ProductRequest.MediaRequest> mediaList = new ArrayList<>();
+                int order = 0;
+                for (String imageUrl : request.getImages()) {
+                    ProductRequest.MediaRequest media = new ProductRequest.MediaRequest();
+                    media.setUrl(imageUrl);
+                    media.setType("image");
+                    media.setDisplayOrder(order++);
+                    mediaList.add(media);
+                }
+                request.setMedia(mediaList);
+            }
+        }
+        
+        // Create the product
+        Product product = new Product();
+        mapRequestToProduct(request, product);
+        
+        // Inherit everything from config - Single Source of Truth
+        inheritFromConfig(product, config);
+        
+        // Generate unique slug with timestamp to ensure uniqueness
+        String baseSlug = generateSlug(product.getName());
+        // Add timestamp to make slug unique
+        String uniqueSlug = baseSlug + "-" + System.currentTimeMillis();
+        
+        // Double check uniqueness (in case of race condition)
+        String finalSlug = uniqueSlug;
+        int counter = 1;
+        while (productRepository.existsBySlug(finalSlug)) {
+            finalSlug = uniqueSlug + "-" + counter;
+            counter++;
+        }
+        product.setSlug(finalSlug);
+        
+        Product saved = productRepository.save(product);
+        return toDtoWithDetails(saved);
+    }
+    
+    /**
+     * Inherits all business logic from CustomProductConfig to Product.
+     * This ensures config is the single source of truth.
+     */
+    private void inheritFromConfig(Product product, CustomConfigDto config) {
+        // GST and HSN from config
+        if (config.getGstRate() != null) {
+            product.setGstRate(config.getGstRate());
+        }
+        if (config.getHsnCode() != null && !config.getHsnCode().trim().isEmpty()) {
+            product.setHsnCode(config.getHsnCode());
+        }
+        
+        // Recommended fabrics from config
+        if (config.getRecommendedFabricIds() != null && !config.getRecommendedFabricIds().isEmpty()) {
+            product.setRecommendedFabricIds(new ArrayList<>(config.getRecommendedFabricIds()));
+        }
+        
+        // Copy variants from config to product
+        if (config.getVariants() != null && !config.getVariants().isEmpty()) {
+            product.getVariants().clear();
+            for (CustomConfigDto.VariantDto configVariant : config.getVariants()) {
+                ProductVariant productVariant = new ProductVariant();
+                productVariant.setType(configVariant.getType());
+                productVariant.setName(configVariant.getName());
+                productVariant.setUnit(configVariant.getUnit());
+                productVariant.setFrontendId(configVariant.getFrontendId());
+                product.addVariant(productVariant);
+                
+                // Copy options
+                if (configVariant.getOptions() != null) {
+                    for (CustomConfigDto.VariantOptionDto configOption : configVariant.getOptions()) {
+                        ProductVariantOption productOption = new ProductVariantOption();
+                        productOption.setValue(configOption.getValue());
+                        productOption.setFrontendId(configOption.getFrontendId());
+                        productOption.setPriceModifier(configOption.getPriceModifier() != null ? 
+                            configOption.getPriceModifier() : BigDecimal.ZERO);
+                        productVariant.addOption(productOption);
+                    }
+                }
+            }
+        }
+        
+        // Copy pricing slabs from config to product
+        if (config.getPricingSlabs() != null && !config.getPricingSlabs().isEmpty()) {
+            product.getPricingSlabs().clear();
+            for (CustomConfigDto.PricingSlabDto configSlab : config.getPricingSlabs()) {
+                ProductPricingSlab productSlab = new ProductPricingSlab();
+                productSlab.setMinQuantity(configSlab.getMinQuantity());
+                productSlab.setMaxQuantity(configSlab.getMaxQuantity());
+                productSlab.setDisplayOrder(configSlab.getDisplayOrder() != null ? configSlab.getDisplayOrder() : 0);
+                
+                // Set discount type and value
+                if (configSlab.getDiscountType() != null && !configSlab.getDiscountType().isEmpty()) {
+                    try {
+                        ProductPricingSlab.DiscountType discountType = 
+                            ProductPricingSlab.DiscountType.valueOf(configSlab.getDiscountType().toUpperCase());
+                        productSlab.setDiscountType(discountType);
+                        productSlab.setDiscountValue(configSlab.getDiscountValue() != null ? 
+                            configSlab.getDiscountValue() : BigDecimal.ZERO);
+                        productSlab.setPricePerMeter(BigDecimal.ZERO);
+                    } catch (IllegalArgumentException e) {
+                        productSlab.setDiscountType(ProductPricingSlab.DiscountType.FIXED_AMOUNT);
+                        productSlab.setDiscountValue(BigDecimal.ZERO);
+                        productSlab.setPricePerMeter(BigDecimal.ZERO);
+                    }
+                } else {
+                    productSlab.setDiscountType(ProductPricingSlab.DiscountType.FIXED_AMOUNT);
+                    productSlab.setDiscountValue(BigDecimal.ZERO);
+                    productSlab.setPricePerMeter(BigDecimal.ZERO);
+                }
+                
+                productSlab.setProduct(product);
+                product.getPricingSlabs().add(productSlab);
+            }
+        }
     }
 
     @Transactional

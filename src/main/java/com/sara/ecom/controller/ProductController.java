@@ -122,4 +122,14 @@ public class ProductController {
         }
         return ResponseEntity.ok(digitalProduct);
     }
+    
+    /**
+     * Public endpoint to create a designed product from user-uploaded design.
+     * This allows users to upload their design and automatically create a product.
+     */
+    @PostMapping("/products/create-from-upload")
+    public ResponseEntity<ProductDto> createProductFromUpload(@RequestBody ProductRequest request) {
+        ProductDto created = productService.createDesignedProductFromUpload(request);
+        return ResponseEntity.ok(created);
+    }
 }

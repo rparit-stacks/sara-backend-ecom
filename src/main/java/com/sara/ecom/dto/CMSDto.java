@@ -12,7 +12,7 @@ public class CMSDto {
         private List<Long> newArrivalIds;
         private List<TestimonialDto> testimonials;
         private List<OfferDto> offers;
-        private List<String> instagramPosts;
+        private List<InstagramPostDto> instagramPosts;
         private List<BannerDto> banners;
         private Map<String, String> landingContent;
         private Map<String, String> contactInfo;
@@ -26,8 +26,8 @@ public class CMSDto {
         public void setTestimonials(List<TestimonialDto> testimonials) { this.testimonials = testimonials; }
         public List<OfferDto> getOffers() { return offers; }
         public void setOffers(List<OfferDto> offers) { this.offers = offers; }
-        public List<String> getInstagramPosts() { return instagramPosts; }
-        public void setInstagramPosts(List<String> instagramPosts) { this.instagramPosts = instagramPosts; }
+        public List<InstagramPostDto> getInstagramPosts() { return instagramPosts; }
+        public void setInstagramPosts(List<InstagramPostDto> instagramPosts) { this.instagramPosts = instagramPosts; }
         public List<BannerDto> getBanners() { return banners; }
         public void setBanners(List<BannerDto> banners) { this.banners = banners; }
         public Map<String, String> getLandingContent() { return landingContent; }
@@ -213,11 +213,31 @@ public class CMSDto {
         public void setProductIds(List<Long> productIds) { this.productIds = productIds; }
     }
     
-    public static class InstagramPostRequest {
-        private List<String> imageUrls;
+    public static class InstagramPostDto {
+        private String imageUrl;
+        private String linkUrl;
         
-        public List<String> getImageUrls() { return imageUrls; }
-        public void setImageUrls(List<String> imageUrls) { this.imageUrls = imageUrls; }
+        public String getImageUrl() { return imageUrl; }
+        public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+        public String getLinkUrl() { return linkUrl; }
+        public void setLinkUrl(String linkUrl) { this.linkUrl = linkUrl; }
+    }
+    
+    public static class InstagramPostRequest {
+        private List<InstagramPostItem> posts;
+        
+        public List<InstagramPostItem> getPosts() { return posts; }
+        public void setPosts(List<InstagramPostItem> posts) { this.posts = posts; }
+    }
+    
+    public static class InstagramPostItem {
+        private String imageUrl;
+        private String linkUrl;
+        
+        public String getImageUrl() { return imageUrl; }
+        public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+        public String getLinkUrl() { return linkUrl; }
+        public void setLinkUrl(String linkUrl) { this.linkUrl = linkUrl; }
     }
     
     public static class ContentRequest {

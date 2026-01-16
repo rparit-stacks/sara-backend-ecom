@@ -43,14 +43,9 @@ public class CMSController {
         return ResponseEntity.ok(cmsService.getActiveOffers());
     }
     
-    @GetMapping("/cms/instagram")
-    public ResponseEntity<List<String>> getInstagram() {
-        return ResponseEntity.ok(cmsService.getInstagramPosts());
-    }
-    
     @GetMapping("/cms/banners")
     public ResponseEntity<List<CMSDto.BannerDto>> getBanners() {
-        return ResponseEntity.ok(cmsService.getActiveBanners());
+        return ResponseEntity.ok(cmsService.getActiveBanners());    
     }
     
     @GetMapping("/cms/landing")
@@ -178,9 +173,14 @@ public class CMSController {
     }
     
     // Instagram
+    @GetMapping("/cms/instagram")
+    public ResponseEntity<List<CMSDto.InstagramPostDto>> getInstagramPosts() {
+        return ResponseEntity.ok(cmsService.getInstagramPosts());
+    }
+    
     @PutMapping("/admin/cms/instagram")
     public ResponseEntity<Void> setInstagramPosts(@RequestBody CMSDto.InstagramPostRequest request) {
-        cmsService.setInstagramPosts(request.getImageUrls());
+        cmsService.setInstagramPosts(request.getPosts());
         return ResponseEntity.ok().build();
     }
     

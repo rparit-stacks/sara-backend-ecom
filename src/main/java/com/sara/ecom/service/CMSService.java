@@ -217,19 +217,25 @@ public class CMSService {
     }
     
     // Instagram Posts
-    public List<String> getInstagramPosts() {
+    public List<CMSDto.InstagramPostDto> getInstagramPosts() {
         return instagramPostRepository.findAllByOrderByDisplayOrderAsc().stream()
-                .map(InstagramPost::getImageUrl)
+                .map(post -> {
+                    CMSDto.InstagramPostDto dto = new CMSDto.InstagramPostDto();
+                    dto.setImageUrl(post.getImageUrl());
+                    dto.setLinkUrl(post.getLinkUrl());
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
     
     @Transactional
-    public void setInstagramPosts(List<String> imageUrls) {
+    public void setInstagramPosts(List<CMSDto.InstagramPostItem> posts) {
         instagramPostRepository.deleteAll();
         int order = 0;
-        for (String url : imageUrls) {
+        for (CMSDto.InstagramPostItem item : posts) {
             InstagramPost post = new InstagramPost();
-            post.setImageUrl(url);
+            post.setImageUrl(item.getImageUrl());
+            post.setLinkUrl(item.getLinkUrl());
             post.setDisplayOrder(order++);
             instagramPostRepository.save(post);
         }

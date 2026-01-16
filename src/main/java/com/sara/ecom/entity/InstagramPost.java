@@ -13,6 +13,9 @@ public class InstagramPost {
     @Column(name = "image_url", nullable = false)
     private String imageUrl;
     
+    @Column(name = "link_url")
+    private String linkUrl; // Link to Instagram post or external URL
+    
     @Column(name = "display_order")
     private Integer displayOrder = 0;
     
@@ -39,5 +42,13 @@ public class InstagramPost {
     
     public void setDisplayOrder(Integer displayOrder) {
         this.displayOrder = displayOrder;
+    }
+    
+    public String getLinkUrl() {
+        return linkUrl;
+    }
+    
+    public void setLinkUrl(String linkUrl) {
+        this.linkUrl = linkUrl;
     }
 }

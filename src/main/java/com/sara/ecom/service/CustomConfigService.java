@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,6 +33,12 @@ public class CustomConfigService {
     @Autowired
     private CustomDesignRequestRepository designRequestRepository;
     
+    @Autowired
+    private com.sara.ecom.repository.CustomConfigVariantRepository variantRepository;
+    
+    @Autowired
+    private com.sara.ecom.repository.CustomConfigPricingSlabRepository pricingSlabRepository;
+    
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     // Get config for public use
@@ -42,6 +49,13 @@ public class CustomConfigService {
         
         CustomConfigDto dto = toConfigDto(config);
         dto.setFormFields(getAllFormFields());
+        
+        // Load variants and pricing slabs
+        if (config.getId() != null) {
+            dto.setVariants(getAllVariants(config.getId()));
+            dto.setPricingSlabs(getAllPricingSlabs(config.getId()));
+        }
+        
         return dto;
     }
     
@@ -57,6 +71,7 @@ public class CustomConfigService {
                 .findFirst()
                 .orElse(new CustomProductConfig());
         
+        // Basic fields
         config.setPageTitle(request.getPageTitle());
         config.setPageDescription(request.getPageDescription());
         config.setUploadLabel(request.getUploadLabel());
@@ -65,11 +80,128 @@ public class CustomConfigService {
         config.setMaxQuantity(request.getMaxQuantity());
         config.setTermsAndConditions(request.getTermsAndConditions());
         
+        // UI Text Fields
+        if (request.getUploadButtonText() != null) {
+            config.setUploadButtonText(request.getUploadButtonText());
+        }
+        if (request.getContinueButtonText() != null) {
+            config.setContinueButtonText(request.getContinueButtonText());
+        }
+        if (request.getSubmitButtonText() != null) {
+            config.setSubmitButtonText(request.getSubmitButtonText());
+        }
+        if (request.getAddToCartButtonText() != null) {
+            config.setAddToCartButtonText(request.getAddToCartButtonText());
+        }
+        if (request.getSelectFabricLabel() != null) {
+            config.setSelectFabricLabel(request.getSelectFabricLabel());
+        }
+        if (request.getQuantityLabel() != null) {
+            config.setQuantityLabel(request.getQuantityLabel());
+        }
+        if (request.getInstructions() != null) {
+            config.setInstructions(request.getInstructions());
+        }
+        
+        // Business Logic Fields
+        config.setGstRate(request.getGstRate());
+        config.setHsnCode(request.getHsnCode());
+        if (request.getRecommendedFabricIds() != null) {
+            config.setRecommendedFabricIds(new ArrayList<>(request.getRecommendedFabricIds()));
+        }
+        
         configRepository.save(config);
+        
+        // Update variants
+        if (request.getVariants() != null) {
+            updateVariants(config, request.getVariants());
+        }
+        
+        // Update pricing slabs
+        if (request.getPricingSlabs() != null) {
+            updatePricingSlabs(config, request.getPricingSlabs());
+        }
         
         CustomConfigDto dto = toConfigDto(config);
         dto.setFormFields(getAllFormFields());
+        if (config.getId() != null) {
+            dto.setVariants(getAllVariants(config.getId()));
+            dto.setPricingSlabs(getAllPricingSlabs(config.getId()));
+        }
         return dto;
+    }
+    
+    @Transactional
+    private void updateVariants(CustomProductConfig config, List<CustomConfigRequest.VariantRequest> variantRequests) {
+        // Clear existing variants
+        config.getVariants().clear();
+        variantRepository.deleteAll(variantRepository.findByConfigIdOrderByDisplayOrderAsc(config.getId()));
+        
+        // Add new variants
+        for (CustomConfigRequest.VariantRequest variantRequest : variantRequests) {
+            com.sara.ecom.entity.CustomConfigVariant variant = new com.sara.ecom.entity.CustomConfigVariant();
+            variant.setConfig(config);
+            variant.setType(variantRequest.getType());
+            variant.setName(variantRequest.getName());
+            variant.setUnit(variantRequest.getUnit());
+            variant.setFrontendId(variantRequest.getFrontendId());
+            variant.setDisplayOrder(variantRequest.getDisplayOrder() != null ? variantRequest.getDisplayOrder() : 0);
+            
+            // Add options
+            if (variantRequest.getOptions() != null) {
+                for (CustomConfigRequest.VariantOptionRequest optionRequest : variantRequest.getOptions()) {
+                    com.sara.ecom.entity.CustomConfigVariantOption option = new com.sara.ecom.entity.CustomConfigVariantOption();
+                    option.setVariant(variant);
+                    option.setValue(optionRequest.getValue());
+                    option.setFrontendId(optionRequest.getFrontendId());
+                    option.setPriceModifier(optionRequest.getPriceModifier() != null ? 
+                        optionRequest.getPriceModifier() : BigDecimal.ZERO);
+                    option.setDisplayOrder(optionRequest.getDisplayOrder() != null ? optionRequest.getDisplayOrder() : 0);
+                    variant.addOption(option);
+                }
+            }
+            
+            config.addVariant(variant);
+        }
+        
+        configRepository.save(config);
+    }
+    
+    @Transactional
+    private void updatePricingSlabs(CustomProductConfig config, List<CustomConfigRequest.PricingSlabRequest> slabRequests) {
+        // Clear existing slabs
+        config.getPricingSlabs().clear();
+        pricingSlabRepository.deleteAll(pricingSlabRepository.findByConfigId(config.getId()));
+        
+        // Add new slabs
+        for (CustomConfigRequest.PricingSlabRequest slabRequest : slabRequests) {
+            com.sara.ecom.entity.CustomConfigPricingSlab slab = new com.sara.ecom.entity.CustomConfigPricingSlab();
+            slab.setConfig(config);
+            slab.setMinQuantity(slabRequest.getMinQuantity());
+            slab.setMaxQuantity(slabRequest.getMaxQuantity());
+            slab.setDisplayOrder(slabRequest.getDisplayOrder() != null ? slabRequest.getDisplayOrder() : 0);
+            
+            // Set discount type and value
+            if (slabRequest.getDiscountType() != null && !slabRequest.getDiscountType().isEmpty()) {
+                try {
+                    com.sara.ecom.entity.CustomConfigPricingSlab.DiscountType discountType = 
+                        com.sara.ecom.entity.CustomConfigPricingSlab.DiscountType.valueOf(slabRequest.getDiscountType().toUpperCase());
+                    slab.setDiscountType(discountType);
+                    slab.setDiscountValue(slabRequest.getDiscountValue() != null ? 
+                        slabRequest.getDiscountValue() : BigDecimal.ZERO);
+                } catch (IllegalArgumentException e) {
+                    slab.setDiscountType(com.sara.ecom.entity.CustomConfigPricingSlab.DiscountType.FIXED_AMOUNT);
+                    slab.setDiscountValue(BigDecimal.ZERO);
+                }
+            } else {
+                slab.setDiscountType(com.sara.ecom.entity.CustomConfigPricingSlab.DiscountType.FIXED_AMOUNT);
+                slab.setDiscountValue(BigDecimal.ZERO);
+            }
+            
+            config.addPricingSlab(slab);
+        }
+        
+        configRepository.save(config);
     }
     
     // Form Field management
@@ -172,6 +304,93 @@ public class CustomConfigService {
         dto.setMinQuantity(config.getMinQuantity());
         dto.setMaxQuantity(config.getMaxQuantity());
         dto.setTermsAndConditions(config.getTermsAndConditions());
+        
+        // UI Text Fields
+        dto.setUploadButtonText(config.getUploadButtonText());
+        dto.setContinueButtonText(config.getContinueButtonText());
+        dto.setSubmitButtonText(config.getSubmitButtonText());
+        dto.setAddToCartButtonText(config.getAddToCartButtonText());
+        dto.setSelectFabricLabel(config.getSelectFabricLabel());
+        dto.setQuantityLabel(config.getQuantityLabel());
+        dto.setInstructions(config.getInstructions());
+        
+        // Business Logic Fields
+        dto.setGstRate(config.getGstRate());
+        dto.setHsnCode(config.getHsnCode());
+        dto.setRecommendedFabricIds(config.getRecommendedFabricIds() != null ? 
+            new ArrayList<>(config.getRecommendedFabricIds()) : new ArrayList<>());
+        
+        return dto;
+    }
+    
+    // Get all variants for config
+    private List<CustomConfigDto.VariantDto> getAllVariants(Long configId) {
+        List<com.sara.ecom.entity.CustomConfigVariant> variants = variantRepository.findByConfigIdWithOptions(configId);
+        // If empty, try without join fetch
+        if (variants.isEmpty()) {
+            variants = variantRepository.findByConfigIdOrderByDisplayOrderAsc(configId);
+        }
+        return variants.stream()
+                .map(this::toVariantDto)
+                .collect(Collectors.toList());
+    }
+    
+    // Get all pricing slabs for config
+    private List<CustomConfigDto.PricingSlabDto> getAllPricingSlabs(Long configId) {
+        List<com.sara.ecom.entity.CustomConfigPricingSlab> slabs = pricingSlabRepository.findByConfigId(configId);
+        // Sort manually
+        slabs.sort((a, b) -> {
+            int orderCompare = Integer.compare(
+                a.getDisplayOrder() != null ? a.getDisplayOrder() : 0,
+                b.getDisplayOrder() != null ? b.getDisplayOrder() : 0
+            );
+            if (orderCompare != 0) return orderCompare;
+            return Integer.compare(
+                a.getMinQuantity() != null ? a.getMinQuantity() : 0,
+                b.getMinQuantity() != null ? b.getMinQuantity() : 0
+            );
+        });
+        return slabs.stream()
+                .map(this::toPricingSlabDto)
+                .collect(Collectors.toList());
+    }
+    
+    private CustomConfigDto.VariantDto toVariantDto(com.sara.ecom.entity.CustomConfigVariant variant) {
+        CustomConfigDto.VariantDto dto = new CustomConfigDto.VariantDto();
+        dto.setId(variant.getId());
+        dto.setType(variant.getType());
+        dto.setName(variant.getName());
+        dto.setUnit(variant.getUnit());
+        dto.setFrontendId(variant.getFrontendId());
+        dto.setDisplayOrder(variant.getDisplayOrder());
+        
+        // Map options
+        List<CustomConfigDto.VariantOptionDto> optionDtos = variant.getOptions().stream()
+                .map(this::toVariantOptionDto)
+                .collect(Collectors.toList());
+        dto.setOptions(optionDtos);
+        
+        return dto;
+    }
+    
+    private CustomConfigDto.VariantOptionDto toVariantOptionDto(com.sara.ecom.entity.CustomConfigVariantOption option) {
+        CustomConfigDto.VariantOptionDto dto = new CustomConfigDto.VariantOptionDto();
+        dto.setId(option.getId());
+        dto.setValue(option.getValue());
+        dto.setFrontendId(option.getFrontendId());
+        dto.setPriceModifier(option.getPriceModifier());
+        dto.setDisplayOrder(option.getDisplayOrder());
+        return dto;
+    }
+    
+    private CustomConfigDto.PricingSlabDto toPricingSlabDto(com.sara.ecom.entity.CustomConfigPricingSlab slab) {
+        CustomConfigDto.PricingSlabDto dto = new CustomConfigDto.PricingSlabDto();
+        dto.setId(slab.getId());
+        dto.setMinQuantity(slab.getMinQuantity());
+        dto.setMaxQuantity(slab.getMaxQuantity());
+        dto.setDiscountType(slab.getDiscountType() != null ? slab.getDiscountType().name() : null);
+        dto.setDiscountValue(slab.getDiscountValue());
+        dto.setDisplayOrder(slab.getDisplayOrder());
         return dto;
     }
     

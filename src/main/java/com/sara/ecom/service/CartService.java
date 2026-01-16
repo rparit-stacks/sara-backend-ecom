@@ -197,6 +197,17 @@ public class CartService {
         dto.setId(item.getId());
         dto.setProductType(item.getProductType().name());
         dto.setProductId(item.getProductId());
+        
+        // Fetch product slug for proper routing (especially for custom products)
+        try {
+            com.sara.ecom.entity.Product product = productRepository.findById(item.getProductId()).orElse(null);
+            if (product != null && product.getSlug() != null && !product.getSlug().trim().isEmpty()) {
+                dto.setProductSlug(product.getSlug());
+            }
+        } catch (Exception e) {
+            // If product not found or error, slug will remain null
+        }
+        
         dto.setProductName(item.getProductName());
         dto.setProductImage(item.getProductImage());
         dto.setDesignId(item.getDesignId());

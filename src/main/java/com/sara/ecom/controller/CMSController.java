@@ -45,7 +45,7 @@ public class CMSController {
     
     @GetMapping("/cms/banners")
     public ResponseEntity<List<CMSDto.BannerDto>> getBanners() {
-        return ResponseEntity.ok(cmsService.getActiveBanners());    
+        return ResponseEntity.ok(cmsService.getActiveBanners());
     }
     
     @GetMapping("/cms/landing")

@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecom-postgres
+    environment:
+      POSTGRES_DB: studio_sara
+      POSTGRES_USER: studio_sara
+      POSTGRES_PASSWORD: StudioSara@111288
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ecom-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studio_sara"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecom-app
+    ports:
+      - "8080:8080"
+    environment:
+      # Database Configuration
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/studio_sara
+      SPRING_DATASOURCE_USERNAME: studio_sara
+      SPRING_DATASOURCE_PASSWORD: StudioSara@111288
+      
+      # JPA Configuration
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_PROPERTIES_HIBERNATE_JDBC_TIME_ZONE: Asia/Kolkata
+      
+      # JWT Configuration
+      JWT_SECRET: b874b29e1729c9dc6f027e39d1c008807a93148ddc95f63fa55164a5d8a7dcf07d0751e91246aa2549ca552e2a2e855770186bff0c3cee4f5946b33e51084e12
+      JWT_EXPIRATION: 86400000
+      JWT_ADMIN_EXPIRATION: 600000
+      
+      # OAuth2 Google Configuration
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID: 1031840263632-idj873b54bjtv6rdoq50gt516k4o79dc.apps.googleusercontent.com
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET: 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
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_SCOPE: openid,profile,email
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_REDIRECT_URI: http://localhost:8080/login/oauth2/code/google
+      
+      # Mail Configuration
+      SPRING_MAIL_HOST: smtp.hostinger.com
+      SPRING_MAIL_PORT: 465
+      SPRING_MAIL_USERNAME: info@codvertex.in
+      SPRING_MAIL_PASSWORD: Rparit@111288
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_REQUIRED: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_CONNECTIONTIMEOUT: 5000
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT: 5000
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_WRITETIMEOUT: 5000
+      SPRING_MAIL_PROPERTIES_MAIL_TRANSPORT_PROTOCOL: smtp
+      SPRING_MAIL_PROPERTIES_MAIL_DEBUG: "false"
+      
+      # OTP Configuration
+      OTP_EXPIRATION: 300000
+      OTP_LENGTH: 6
+      
+      # Cloudinary Configuration
+      CLOUDINARY_URL: cloudinary://988261371328627:5JNztGOWVc5e7gsWespVYb8e2bg@dm7eyzc0c
+      
+      # Swipe API Configuration
+      SWIPE_API_URL: https://api.getswipe.in/v1
+      
+      # Server Configuration
+      SERVER_PORT: 8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ecom-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  ecom-network:
+    driver: bridge

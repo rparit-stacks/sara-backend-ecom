@@ -111,6 +111,11 @@ public class Product {
     @Column(name = "plain_product_id")
     private List<Long> recommendedFabricIds = new ArrayList<>();
     
+    // For DESIGNED products - quantity-based pricing slabs
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder ASC, minQuantity ASC")
+    private List<ProductPricingSlab> pricingSlabs = new ArrayList<>();
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
@@ -311,6 +316,14 @@ public class Product {
     
     public void setRecommendedFabricIds(List<Long> recommendedFabricIds) {
         this.recommendedFabricIds = recommendedFabricIds;
+    }
+    
+    public List<ProductPricingSlab> getPricingSlabs() {
+        return pricingSlabs;
+    }
+    
+    public void setPricingSlabs(List<ProductPricingSlab> pricingSlabs) {
+        this.pricingSlabs = pricingSlabs;
     }
     
     public LocalDateTime getCreatedAt() {

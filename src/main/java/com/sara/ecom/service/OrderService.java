@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sara.ecom.dto.AddToCartRequest;
+import com.sara.ecom.dto.AddressRequest;
 import com.sara.ecom.dto.CartDto;
 import com.sara.ecom.dto.CreateOrderRequest;
 import com.sara.ecom.dto.OrderDto;
+import com.sara.ecom.dto.UserAddressDto;
 import com.sara.ecom.entity.Order;
 import com.sara.ecom.entity.OrderItem;
 import com.sara.ecom.entity.User;
@@ -42,6 +44,9 @@ public class OrderService {
     
     @Autowired
     private SwipeService swipeService;
+    
+    @Autowired
+    private UserAddressService userAddressService;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -231,6 +236,33 @@ public class OrderService {
         }
         
         Order saved = orderRepository.save(order);
+        
+        // Auto-save shipping address to user profile if not using existing address ID
+        // This applies to both logged-in users (without default address) and guest users
+        if (request.getShippingAddressId() == null && request.getShippingAddress() != null) {
+            try {
+                Map<String, Object> shippingAddr = request.getShippingAddress();
+                AddressRequest addressRequest = new AddressRequest();
+                addressRequest.setFirstName((String) shippingAddr.get("firstName"));
+                addressRequest.setLastName((String) shippingAddr.get("lastName"));
+                addressRequest.setPhoneNumber((String) shippingAddr.get("phone"));
+                addressRequest.setAddress((String) shippingAddr.get("address"));
+                addressRequest.setCity((String) shippingAddr.get("city"));
+                addressRequest.setState((String) shippingAddr.get("state"));
+                addressRequest.setZipCode((String) shippingAddr.get("postalCode"));
+                addressRequest.setCountry("India"); // Default for Indian addresses
+                addressRequest.setGstin((String) shippingAddr.get("gstin"));
+                
+                // Check if user has any addresses - if not, set as default
+                List<UserAddressDto> existingAddresses = userAddressService.getUserAddresses(userEmail);
+                addressRequest.setIsDefault(existingAddresses.isEmpty());
+                
+                userAddressService.createAddress(userEmail, addressRequest);
+            } catch (Exception e) {
+                // Log error but don't fail order creation
+                System.err.println("Failed to save address to user profile: " + e.getMessage());
+            }
+        }
         
         // Clear cart
         cartService.clearCart(userEmail);

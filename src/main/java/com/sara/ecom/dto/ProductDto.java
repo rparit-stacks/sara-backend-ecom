@@ -24,6 +24,7 @@ public class ProductDto {
     private Long designId;
     private List<Long> recommendedFabricIds;
     private List<PlainProductDto> recommendedFabrics;
+    private List<PricingSlabDto> pricingSlabs; // Quantity-based pricing slabs
     
     // For PLAIN products
     private Long plainProductId;
@@ -460,5 +461,83 @@ public class ProductDto {
     
     public void setHsnCode(String hsnCode) {
         this.hsnCode = hsnCode;
+    }
+    
+    public List<PricingSlabDto> getPricingSlabs() {
+        return pricingSlabs;
+    }
+    
+    public void setPricingSlabs(List<PricingSlabDto> pricingSlabs) {
+        this.pricingSlabs = pricingSlabs;
+    }
+    
+    // Pricing Slab DTO inner class
+    public static class PricingSlabDto {
+        private Long id;
+        private Integer minQuantity;
+        private Integer maxQuantity;
+        private String discountType; // "FIXED_AMOUNT" or "PERCENTAGE"
+        private BigDecimal discountValue; // Discount amount (₹X for FIXED_AMOUNT, X% for PERCENTAGE)
+        private Integer displayOrder;
+        
+        // Legacy field - kept for backward compatibility
+        private BigDecimal pricePerMeter;
+        
+        public Long getId() {
+            return id;
+        }
+        
+        public void setId(Long id) {
+            this.id = id;
+        }
+        
+        public Integer getMinQuantity() {
+            return minQuantity;
+        }
+        
+        public void setMinQuantity(Integer minQuantity) {
+            this.minQuantity = minQuantity;
+        }
+        
+        public Integer getMaxQuantity() {
+            return maxQuantity;
+        }
+        
+        public void setMaxQuantity(Integer maxQuantity) {
+            this.maxQuantity = maxQuantity;
+        }
+        
+        public String getDiscountType() {
+            return discountType;
+        }
+        
+        public void setDiscountType(String discountType) {
+            this.discountType = discountType;
+        }
+        
+        public BigDecimal getDiscountValue() {
+            return discountValue;
+        }
+        
+        public void setDiscountValue(BigDecimal discountValue) {
+            this.discountValue = discountValue;
+        }
+        
+        public Integer getDisplayOrder() {
+            return displayOrder;
+        }
+        
+        public void setDisplayOrder(Integer displayOrder) {
+            this.displayOrder = displayOrder;
+        }
+        
+        // Legacy getter/setter - kept for backward compatibility
+        public BigDecimal getPricePerMeter() {
+            return pricePerMeter;
+        }
+        
+        public void setPricePerMeter(BigDecimal pricePerMeter) {
+            this.pricePerMeter = pricePerMeter;
+        }
     }
 }

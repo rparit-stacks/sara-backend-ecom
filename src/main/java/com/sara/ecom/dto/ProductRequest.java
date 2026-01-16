@@ -19,6 +19,7 @@ public class ProductRequest {
     private BigDecimal designPrice;
     private Long designId;
     private List<Long> recommendedFabricIds;
+    private List<PricingSlabRequest> pricingSlabs; // Quantity-based pricing slabs
     
     // For PLAIN products
     private Long plainProductId;
@@ -382,8 +383,77 @@ public class ProductRequest {
     public void setHsnCode(String hsnCode) {
         this.hsnCode = hsnCode;
     }
+    
+    public List<PricingSlabRequest> getPricingSlabs() {
+        return pricingSlabs;
+    }
+    
+    public void setPricingSlabs(List<PricingSlabRequest> pricingSlabs) {
+        this.pricingSlabs = pricingSlabs;
+    }
 
     public void setOriginalPrice(BigDecimal originalPrice) {
         this.originalPrice = originalPrice;
+    }
+    
+    // Pricing Slab Request inner class
+    public static class PricingSlabRequest {
+        private Integer minQuantity;
+        private Integer maxQuantity; // null means no upper limit
+        private String discountType; // "FIXED_AMOUNT" or "PERCENTAGE"
+        private BigDecimal discountValue; // Discount amount (₹X for FIXED_AMOUNT, X% for PERCENTAGE)
+        private Integer displayOrder;
+        
+        // Legacy field - kept for backward compatibility
+        private BigDecimal pricePerMeter;
+        
+        public Integer getMinQuantity() {
+            return minQuantity;
+        }
+        
+        public void setMinQuantity(Integer minQuantity) {
+            this.minQuantity = minQuantity;
+        }
+        
+        public Integer getMaxQuantity() {
+            return maxQuantity;
+        }
+        
+        public void setMaxQuantity(Integer maxQuantity) {
+            this.maxQuantity = maxQuantity;
+        }
+        
+        public String getDiscountType() {
+            return discountType;
+        }
+        
+        public void setDiscountType(String discountType) {
+            this.discountType = discountType;
+        }
+        
+        public BigDecimal getDiscountValue() {
+            return discountValue;
+        }
+        
+        public void setDiscountValue(BigDecimal discountValue) {
+            this.discountValue = discountValue;
+        }
+        
+        public Integer getDisplayOrder() {
+            return displayOrder;
+        }
+        
+        public void setDisplayOrder(Integer displayOrder) {
+            this.displayOrder = displayOrder;
+        }
+        
+        // Legacy getter/setter - kept for backward compatibility
+        public BigDecimal getPricePerMeter() {
+            return pricePerMeter;
+        }
+        
+        public void setPricePerMeter(BigDecimal pricePerMeter) {
+            this.pricePerMeter = pricePerMeter;
+        }
     }
 }

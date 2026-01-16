@@ -412,6 +412,59 @@ public class ProductService {
                 if (request.getRecommendedFabricIds() != null) {
                     product.setRecommendedFabricIds(new ArrayList<>(request.getRecommendedFabricIds()));
                 }
+                // Handle pricing slabs
+                if (request.getPricingSlabs() != null && !request.getPricingSlabs().isEmpty()) {
+                    // Clear existing slabs
+                    product.getPricingSlabs().clear();
+                    // Add new slabs
+                    int order = 0;
+                    for (ProductRequest.PricingSlabRequest slabRequest : request.getPricingSlabs()) {
+                        com.sara.ecom.entity.ProductPricingSlab slab = new com.sara.ecom.entity.ProductPricingSlab();
+                        slab.setProduct(product);
+                        slab.setMinQuantity(slabRequest.getMinQuantity());
+                        slab.setMaxQuantity(slabRequest.getMaxQuantity());
+                        
+                        // Set discount type and value
+                        if (slabRequest.getDiscountType() != null && !slabRequest.getDiscountType().isEmpty()) {
+                            try {
+                                com.sara.ecom.entity.ProductPricingSlab.DiscountType discountType = 
+                                    com.sara.ecom.entity.ProductPricingSlab.DiscountType.valueOf(slabRequest.getDiscountType().toUpperCase());
+                                slab.setDiscountType(discountType);
+                                BigDecimal discountValue = parseBigDecimal(slabRequest.getDiscountValue());
+                                if (discountValue == null) {
+                                    discountValue = BigDecimal.ZERO;
+                                }
+                                slab.setDiscountValue(discountValue);
+                                // Set pricePerMeter to 0 for new discount-based system (database requires NOT NULL)
+                                slab.setPricePerMeter(BigDecimal.ZERO);
+                            } catch (IllegalArgumentException e) {
+                                // Invalid discount type, use default
+                                slab.setDiscountType(com.sara.ecom.entity.ProductPricingSlab.DiscountType.FIXED_AMOUNT);
+                                slab.setDiscountValue(BigDecimal.ZERO);
+                                slab.setPricePerMeter(BigDecimal.ZERO);
+                            }
+                        } else {
+                            // Legacy support: if discountType not provided, use FIXED_AMOUNT with pricePerMeter
+                            // This is for backward compatibility - legacy system used absolute prices
+                            slab.setDiscountType(com.sara.ecom.entity.ProductPricingSlab.DiscountType.FIXED_AMOUNT);
+                            BigDecimal pricePerMeter = parseBigDecimal(slabRequest.getPricePerMeter());
+                            if (pricePerMeter != null && pricePerMeter.compareTo(BigDecimal.ZERO) > 0) {
+                                // Legacy: pricePerMeter was absolute price, set discount to 0 for now
+                                // Admin will need to reconfigure slabs with proper discount values
+                                slab.setDiscountValue(BigDecimal.ZERO);
+                                slab.setPricePerMeter(pricePerMeter);
+                            } else {
+                                slab.setDiscountValue(BigDecimal.ZERO);
+                                // Database requires NOT NULL, so set to 0
+                                slab.setPricePerMeter(BigDecimal.ZERO);
+                            }
+                        }
+                        
+                        slab.setDisplayOrder(slabRequest.getDisplayOrder() != null ? slabRequest.getDisplayOrder() : order);
+                        product.getPricingSlabs().add(slab);
+                        order++;
+                    }
+                }
                 break;
             case PLAIN:
                 product.setPlainProductId(request.getPlainProductId());
@@ -554,6 +607,26 @@ public class ProductService {
                 dto.setDesignPrice(product.getDesignPrice());
                 dto.setDesignId(product.getDesignId());
                 dto.setRecommendedFabricIds(product.getRecommendedFabricIds());
+                // Map pricing slabs
+                if (product.getPricingSlabs() != null && !product.getPricingSlabs().isEmpty()) {
+                    dto.setPricingSlabs(product.getPricingSlabs().stream()
+                        .map(slab -> {
+                            ProductDto.PricingSlabDto slabDto = new ProductDto.PricingSlabDto();
+                            slabDto.setId(slab.getId());
+                            slabDto.setMinQuantity(slab.getMinQuantity());
+                            slabDto.setMaxQuantity(slab.getMaxQuantity());
+                            // Set discount type and value
+                            if (slab.getDiscountType() != null) {
+                                slabDto.setDiscountType(slab.getDiscountType().name());
+                                slabDto.setDiscountValue(slab.getDiscountValue());
+                            }
+                            // Legacy support
+                            slabDto.setPricePerMeter(slab.getPricePerMeter());
+                            slabDto.setDisplayOrder(slab.getDisplayOrder());
+                            return slabDto;
+                        })
+                        .collect(Collectors.toList()));
+                }
                 break;
             case PLAIN:
                 dto.setPlainProductId(product.getPlainProductId());

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sara.ecom.dto.AddToCartRequest;
 import com.sara.ecom.dto.CartDto;
 import com.sara.ecom.dto.CouponDto;
+import com.sara.ecom.dto.EmailTemplateData;
+import com.sara.ecom.entity.User;
 import com.sara.ecom.entity.CartItem;
 import com.sara.ecom.repository.CartItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +34,15 @@ public class CartService {
     
     @Autowired
     private com.sara.ecom.repository.ProductRepository productRepository;
+    
+    @Autowired
+    private com.sara.ecom.service.CustomProductService customProductService;
+    
+    @Autowired
+    private EmailService emailService;
+    
+    @Autowired
+    private com.sara.ecom.repository.UserRepository userRepository;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -155,7 +166,49 @@ public class CartService {
             }
         }
         
-        return toCartItemDto(cartItemRepository.save(item));
+        CartItem savedItem = cartItemRepository.save(item);
+        
+        // If this is a custom product (CUSTOM type), save it to CustomProduct table
+        if (item.getProductType() == CartItem.ProductType.CUSTOM && request.getCustomProductId() != null) {
+            try {
+                // Mark the custom product as saved
+                customProductService.saveCustomProduct(request.getCustomProductId(), userEmail);
+            } catch (Exception e) {
+                // Log but don't fail cart addition
+                System.err.println("Failed to save custom product: " + e.getMessage());
+            }
+        }
+        
+        // Send email notification if user is logged in (not a guest)
+        if (userEmail != null && !userEmail.startsWith("guest_")) {
+            try {
+                User user = userRepository.findByEmail(userEmail).orElse(null);
+                if (user != null) {
+                    String recipientName = (user.getFirstName() != null ? user.getFirstName() : "") + 
+                                         (user.getLastName() != null ? " " + user.getLastName() : "");
+                    if (recipientName.trim().isEmpty()) {
+                        recipientName = user.getEmail();
+                    }
+                    
+                    EmailTemplateData.CartEmailData emailData = new EmailTemplateData.CartEmailData();
+                    emailData.setRecipientName(recipientName.trim());
+                    emailData.setRecipientEmail(user.getEmail());
+                    emailData.setProductName(request.getProductName());
+                    emailData.setProductImage(request.getProductImage());
+                    emailData.setPrice(request.getUnitPrice() != null ? request.getUnitPrice() : BigDecimal.ZERO);
+                    emailData.setQuantity(request.getQuantity() != null ? request.getQuantity() : 1);
+                    emailData.setProductType(request.getProductType());
+                    
+                    emailService.sendItemAddedToCartEmail(emailData);
+                }
+            } catch (Exception e) {
+                // Log error but don't fail cart addition
+                System.err.println("Failed to send cart email: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        return toCartItemDto(savedItem);
     }
     
     @Transactional

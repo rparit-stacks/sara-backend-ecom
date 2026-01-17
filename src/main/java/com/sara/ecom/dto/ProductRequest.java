@@ -36,6 +36,12 @@ public class ProductRequest {
     private BigDecimal gstRate;
     private String hsnCode;
     
+    // For custom products - optional user email for guest users
+    private String userEmail;
+    
+    // For custom products - generated mockup URLs
+    private List<String> mockupUrls;
+    
     public static class DetailSectionRequest {
         private String title;
         private String content;
@@ -382,6 +388,22 @@ public class ProductRequest {
     
     public void setHsnCode(String hsnCode) {
         this.hsnCode = hsnCode;
+    }
+    
+    public String getUserEmail() {
+        return userEmail;
+    }
+    
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
+    }
+    
+    public List<String> getMockupUrls() {
+        return mockupUrls;
+    }
+    
+    public void setMockupUrls(List<String> mockupUrls) {
+        this.mockupUrls = mockupUrls;
     }
     
     public List<PricingSlabRequest> getPricingSlabs() {

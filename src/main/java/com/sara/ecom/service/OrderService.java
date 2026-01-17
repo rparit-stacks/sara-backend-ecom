@@ -7,6 +7,7 @@ import com.sara.ecom.dto.AddToCartRequest;
 import com.sara.ecom.dto.AddressRequest;
 import com.sara.ecom.dto.CartDto;
 import com.sara.ecom.dto.CreateOrderRequest;
+import com.sara.ecom.dto.EmailTemplateData;
 import com.sara.ecom.dto.OrderDto;
 import com.sara.ecom.dto.UserAddressDto;
 import com.sara.ecom.entity.Order;
@@ -19,6 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +51,21 @@ public class OrderService {
     
     @Autowired
     private UserAddressService userAddressService;
+    
+    @Autowired
+    private CategoryService categoryService;
+    
+    @Autowired
+    private com.sara.ecom.repository.CategoryRepository categoryRepository;
+    
+    @Autowired
+    private com.sara.ecom.repository.ProductRepository productRepository;
+    
+    @Autowired
+    private EmailService emailService;
+    
+    @Autowired
+    private com.sara.ecom.service.WhatsAppNotificationService whatsAppNotificationService;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -113,6 +132,26 @@ public class OrderService {
         CartDto cart = cartService.getCart(userEmail, null, null);
         if (cart.getItems().isEmpty()) {
             throw new RuntimeException("Cart is empty");
+        }
+        
+        // Validate category restrictions for all cart items
+        for (CartDto.CartItemDto item : cart.getItems()) {
+            if (item.getProductId() != null) {
+                // Get product's category
+                com.sara.ecom.entity.Product product = productRepository.findById(item.getProductId())
+                        .orElse(null);
+                if (product != null && product.getCategoryId() != null) {
+                    // Check if user has access to this category
+                    com.sara.ecom.entity.Category category = categoryRepository.findById(product.getCategoryId())
+                            .orElse(null);
+                    if (category != null && !isCategoryAccessible(category, userEmail)) {
+                        throw new RuntimeException(
+                            "You do not have permission to purchase products from category: " + category.getName() + 
+                            ". This category is restricted to specific users only."
+                        );
+                    }
+                }
+            }
         }
         
         // Extract state from shipping address
@@ -267,7 +306,31 @@ public class OrderService {
         // Clear cart
         cartService.clearCart(userEmail);
         
-        return toOrderDto(saved);
+        OrderDto orderDto = toOrderDto(saved);
+        
+        // Send order placed email
+        try {
+            EmailTemplateData.OrderEmailData emailData = buildOrderEmailData(orderDto, user);
+            emailService.sendOrderPlacedEmail(emailData);
+        } catch (Exception e) {
+            // Log error but don't fail order creation
+            System.err.println("Failed to send order placed email: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        // Send WhatsApp notification for order placed
+        try {
+            whatsAppNotificationService.sendOrderStatusNotification(
+                    saved,
+                    com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_PLACED
+            );
+        } catch (Exception e) {
+            // Log error but don't fail order creation
+            System.err.println("Failed to send WhatsApp order notification: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return orderDto;
     }
     
     public List<OrderDto> getUserOrders(String userEmail) {
@@ -338,18 +401,172 @@ public class OrderService {
             }
         }
         
-        return toOrderDto(savedOrder);
+        OrderDto orderDto = toOrderDto(savedOrder);
+        
+        // Send order status update email
+        try {
+            User user = userRepository.findByEmail(savedOrder.getUserEmail()).orElse(null);
+            if (user != null) {
+                EmailTemplateData.OrderEmailData emailData = buildOrderEmailData(orderDto, user);
+                emailData.setOrderStatus(newStatus.name());
+                
+                switch (newStatus) {
+                    case CONFIRMED:
+                        emailService.sendOrderConfirmedEmail(emailData);
+                        break;
+                    case PROCESSING:
+                        emailService.sendOrderProcessingEmail(emailData);
+                        break;
+                    case SHIPPED:
+                        emailService.sendOrderShippedEmail(emailData);
+                        break;
+                    case DELIVERED:
+                        emailService.sendOrderDeliveredEmail(emailData);
+                        break;
+                    case CANCELLED:
+                        emailService.sendOrderCancelledEmail(emailData);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        } catch (Exception e) {
+            // Log error but don't fail order update
+            System.err.println("Failed to send order status email: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        // Send WhatsApp notification for order status update
+        try {
+            com.sara.ecom.entity.OrderStatusTemplate.StatusType whatsappStatusType = null;
+            switch (newStatus) {
+                case CONFIRMED:
+                    whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_CONFIRMED;
+                    break;
+                case PROCESSING:
+                    // Processing is same as confirmed, no separate notification
+                    break;
+                case SHIPPED:
+                    whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_SHIPPED;
+                    break;
+                case DELIVERED:
+                    whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.DELIVERED;
+                    break;
+                case CANCELLED:
+                    whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.CANCELLED;
+                    break;
+                default:
+                    break;
+            }
+            
+            if (whatsappStatusType != null) {
+                whatsAppNotificationService.sendOrderStatusNotification(savedOrder, whatsappStatusType);
+            }
+        } catch (Exception e) {
+            // Log error but don't fail order update
+            System.err.println("Failed to send WhatsApp order status notification: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return orderDto;
+    }
+    
+    /**
+     * Checks if a category is accessible to a user based on email restrictions.
+     */
+    private boolean isCategoryAccessible(com.sara.ecom.entity.Category category, String userEmail) {
+        // If no email restriction, category is accessible
+        if (category.getAllowedEmails() == null || category.getAllowedEmails().trim().isEmpty()) {
+            return true;
+        }
+        
+        // If user email is null, category is not accessible
+        if (userEmail == null || userEmail.trim().isEmpty()) {
+            return false;
+        }
+        
+        // Check if user email is in the allowed emails list
+        String[] allowedEmails = category.getAllowedEmails().split(",");
+        for (String email : allowedEmails) {
+            if (email.trim().equalsIgnoreCase(userEmail.trim())) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     @Transactional
     public OrderDto updatePaymentStatus(Long orderId, String paymentStatus, String paymentId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
+        Order.PaymentStatus oldPaymentStatus = order.getPaymentStatus();
         order.setPaymentStatus(Order.PaymentStatus.valueOf(paymentStatus.toUpperCase()));
         if (paymentId != null) {
             order.setPaymentId(paymentId);
         }
-        return toOrderDto(orderRepository.save(order));
+        Order savedOrder = orderRepository.save(order);
+        OrderDto orderDto = toOrderDto(savedOrder);
+        
+        // Send payment status email if status changed
+        if (oldPaymentStatus != order.getPaymentStatus()) {
+            try {
+                User user = userRepository.findByEmail(savedOrder.getUserEmail()).orElse(null);
+                if (user != null) {
+                    EmailTemplateData.OrderEmailData emailData = buildOrderEmailData(orderDto, user);
+                    emailData.setPaymentStatus(paymentStatus);
+                    
+                    switch (order.getPaymentStatus()) {
+                        case PENDING:
+                            emailService.sendPaymentPendingEmail(emailData);
+                            break;
+                        case PAID:
+                            emailService.sendPaymentSuccessfulEmail(emailData);
+                            break;
+                        case FAILED:
+                            emailService.sendPaymentFailedEmail(emailData);
+                            break;
+                        case REFUNDED:
+                            emailService.sendPaymentRefundedEmail(emailData);
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            } catch (Exception e) {
+                // Log error but don't fail payment status update
+                System.err.println("Failed to send payment status email: " + e.getMessage());
+                e.printStackTrace();
+            }
+            
+            // Send WhatsApp notification for payment status update
+            try {
+                com.sara.ecom.entity.OrderStatusTemplate.StatusType whatsappStatusType = null;
+                switch (order.getPaymentStatus()) {
+                    case PAID:
+                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.PAYMENT_SUCCESS;
+                        break;
+                    case FAILED:
+                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.PAYMENT_FAILED;
+                        break;
+                    case REFUNDED:
+                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.REFUND_COMPLETED;
+                        break;
+                    default:
+                        break;
+                }
+                
+                if (whatsappStatusType != null) {
+                    whatsAppNotificationService.sendOrderStatusNotification(savedOrder, whatsappStatusType);
+                }
+            } catch (Exception e) {
+                // Log error but don't fail payment status update
+                System.err.println("Failed to send WhatsApp payment status notification: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        return orderDto;
     }
     
     @Transactional
@@ -454,5 +671,83 @@ public class OrderService {
         }
         
         return dto;
+    }
+    
+    /**
+     * Builds OrderEmailData from OrderDto and User for email notifications
+     */
+    private EmailTemplateData.OrderEmailData buildOrderEmailData(OrderDto orderDto, User user) {
+        String recipientName = (user.getFirstName() != null ? user.getFirstName() : "") + 
+                               (user.getLastName() != null ? " " + user.getLastName() : "");
+        if (recipientName.trim().isEmpty()) {
+            recipientName = user.getEmail();
+        }
+        
+        // Format shipping address
+        String shippingAddressStr = "";
+        if (orderDto.getShippingAddress() != null) {
+            Map<String, Object> addr = orderDto.getShippingAddress();
+            shippingAddressStr = String.format("%s, %s, %s %s, %s",
+                addr.getOrDefault("address", ""),
+                addr.getOrDefault("city", ""),
+                addr.getOrDefault("state", ""),
+                addr.getOrDefault("postalCode", ""),
+                addr.getOrDefault("country", "India")
+            );
+        }
+        
+        // Format billing address
+        String billingAddressStr = "";
+        if (orderDto.getBillingAddress() != null) {
+            Map<String, Object> addr = orderDto.getBillingAddress();
+            billingAddressStr = String.format("%s, %s, %s %s, %s",
+                addr.getOrDefault("address", ""),
+                addr.getOrDefault("city", ""),
+                addr.getOrDefault("state", ""),
+                addr.getOrDefault("postalCode", ""),
+                addr.getOrDefault("country", "India")
+            );
+        }
+        
+        // Build order items
+        List<EmailTemplateData.OrderItemData> orderItems = new ArrayList<>();
+        if (orderDto.getItems() != null) {
+            for (OrderDto.OrderItemDto item : orderDto.getItems()) {
+                orderItems.add(EmailTemplateData.OrderItemData.builder()
+                    .productName(item.getName())
+                    .productImage(item.getImage())
+                    .quantity(item.getQuantity())
+                    .unitPrice(item.getPrice())
+                    .totalPrice(item.getTotalPrice())
+                    .productType(item.getProductType())
+                    .build());
+            }
+        }
+        
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
+        String orderDate = orderDto.getCreatedAt() != null 
+            ? orderDto.getCreatedAt().format(formatter) 
+            : LocalDateTime.now().format(formatter);
+        
+        EmailTemplateData.OrderEmailData emailData = new EmailTemplateData.OrderEmailData();
+        // Base fields
+        emailData.setRecipientName(recipientName.trim());
+        emailData.setRecipientEmail(user.getEmail());
+        // Order specific fields
+        emailData.setOrderNumber(orderDto.getOrderNumber());
+        emailData.setOrderDate(orderDate);
+        emailData.setOrderStatus(orderDto.getStatus());
+        emailData.setPaymentStatus(orderDto.getPaymentStatus());
+        emailData.setSubtotal(orderDto.getSubtotal());
+        emailData.setGst(orderDto.getGst());
+        emailData.setShipping(orderDto.getShipping());
+        emailData.setTotal(orderDto.getTotal());
+        emailData.setCouponDiscount(orderDto.getCouponDiscount());
+        emailData.setCouponCode(orderDto.getCouponCode());
+        emailData.setShippingAddress(shippingAddressStr);
+        emailData.setBillingAddress(billingAddressStr);
+        emailData.setItems(orderItems);
+        emailData.setInvoiceUrl(orderDto.getSwipeInvoiceUrl());
+        return emailData;
     }
 }

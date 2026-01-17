@@ -47,6 +47,10 @@ public class Category {
     @Builder.Default
     private Boolean isFabric = false;
     
+    // Comma-separated list of emails for category access restriction
+    @Column(name = "allowed_emails", columnDefinition = "TEXT")
+    private String allowedEmails;
+    
     private LocalDateTime createdAt;
     
     private LocalDateTime updatedAt;

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Placed</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #2b9d8f;">
+                <h1 style="color: #ffffff; margin: 0;">[[${appName}]]</h1>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 40px 20px; background-color: #ffffff; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333333; margin-top: 0;">Order Placed Successfully!</h2>
+                <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                    Hello [[${recipientName}]],
+                </p>
+                <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                    Thank you for your order! We have received your order and will begin processing it shortly.
+                </p>
+                
+                <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="color: #333333; margin-top: 0;">Order Details</h3>
+                    <p style="margin: 5px 0;"><strong>Order Number:</strong> [[${data.orderNumber}]]</p>
+                    <p style="margin: 5px 0;"><strong>Order Date:</strong> [[${data.orderDate}]]</p>
+                    <p style="margin: 5px 0;"><strong>Status:</strong> [[${data.orderStatus}]]</p>
+                    <p style="margin: 5px 0;"><strong>Payment Status:</strong> [[${data.paymentStatus}]]</p>
+                </div>
+                
+                <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="color: #333333; margin-top: 0;">Order Items</h3>
+                    <div th:each="item : ${data.items}">
+                        <div style="display: flex; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e0e0e0;">
+                            <img th:src="${item.productImage}" alt="Product" style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px; margin-right: 15px;">
+                            <div style="flex: 1;">
+                                <p style="margin: 0; font-weight: bold; color: #333333;">[[${item.productName}]]</p>
+                                <p style="margin: 5px 0; color: #666666;">Quantity: [[${item.quantity}]]</p>
+                                <p style="margin: 5px 0; color: #2b9d8f; font-weight: bold;">₹[[${#numbers.formatDecimal(item.totalPrice, 1, 2)}]]</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="color: #333333; margin-top: 0;">Order Summary</h3>
+                    <table style="width: 100%;">
+                        <tr>
+                            <td style="padding: 5px 0; color: #666666;">Subtotal:</td>
+                            <td style="text-align: right; padding: 5px 0; color: #333333;">₹[[${#numbers.formatDecimal(data.subtotal, 1, 2)}]]</td>
+                        </tr>
+                        <tr th:if="${data.gst != null and data.gst > 0}">
+                            <td style="padding: 5px 0; color: #666666;">GST:</td>
+                            <td style="text-align: right; padding: 5px 0; color: #333333;">₹[[${#numbers.formatDecimal(data.gst, 1, 2)}]]</td>
+                        </tr>
+                        <tr th:if="${data.shipping != null and data.shipping > 0}">
+                            <td style="padding: 5px 0; color: #666666;">Shipping:</td>
+                            <td style="text-align: right; padding: 5px 0; color: #333333;">₹[[${#numbers.formatDecimal(data.shipping, 1, 2)}]]</td>
+                        </tr>
+                        <tr th:if="${data.couponDiscount != null and data.couponDiscount > 0}">
+                            <td style="padding: 5px 0; color: #666666;">Discount ([[${data.couponCode}]]):</td>
+                            <td style="text-align: right; padding: 5px 0; color: #2b9d8f;">-₹[[${#numbers.formatDecimal(data.couponDiscount, 1, 2)}]]</td>
+                        </tr>
+                        <tr style="border-top: 2px solid #2b9d8f;">
+                            <td style="padding: 10px 0; font-weight: bold; color: #333333; font-size: 18px;">Total:</td>
+                            <td style="text-align: right; padding: 10px 0; font-weight: bold; color: #2b9d8f; font-size: 18px;">₹[[${#numbers.formatDecimal(data.total, 1, 2)}]]</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a th:href="${appUrl + '/orders/' + data.orderNumber}" style="display: inline-block; padding: 12px 30px; background-color: #2b9d8f; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">View Order</a>
+                </div>
+                
+                <p style="color: #666666; font-size: 14px; line-height: 1.6;">
+                    We'll send you another email when your order ships. If you have any questions, please don't hesitate to contact us.
+                </p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 20px; text-align: center; background-color: #f4f4f4; color: #666666; font-size: 12px;">
+                <p style="margin: 5px 0;">© [[${currentYear}]] [[${appName}]]. All rights reserved.</p>
+                <p style="margin: 5px 0;">[[${appAddress}]]</p>
+                <p style="margin: 5px 0;">Email: [[${appEmail}]] | Phone: [[${appPhone}]]</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

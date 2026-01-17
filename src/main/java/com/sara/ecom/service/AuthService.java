@@ -1,6 +1,7 @@
 package com.sara.ecom.service;
 
 import com.sara.ecom.dto.AuthResponse;
+import com.sara.ecom.dto.EmailTemplateData;
 import com.sara.ecom.dto.OtpRequest;
 import com.sara.ecom.dto.OtpVerifyRequest;
 import com.sara.ecom.entity.User;
@@ -37,6 +38,7 @@ public class AuthService {
         }
         
         // Find or create user
+        boolean isNewUser = !userRepository.existsByEmail(email);
         User user = userRepository.findByEmail(email)
                 .orElseGet(() -> {
                     User newUser = User.builder()
@@ -51,6 +53,27 @@ public class AuthService {
         if (!user.getEmailVerified()) {
             user.setEmailVerified(true);
             userRepository.save(user);
+        }
+        
+        // Send welcome email if this is a new user
+        if (isNewUser) {
+            try {
+                String recipientName = (user.getFirstName() != null ? user.getFirstName() : "") + 
+                                     (user.getLastName() != null ? " " + user.getLastName() : "");
+                if (recipientName.trim().isEmpty()) {
+                    recipientName = user.getEmail();
+                }
+                
+                EmailTemplateData.WelcomeEmailData emailData = new EmailTemplateData.WelcomeEmailData();
+                emailData.setRecipientName(recipientName.trim());
+                emailData.setRecipientEmail(user.getEmail());
+                
+                emailService.sendWelcomeEmail(emailData);
+            } catch (Exception e) {
+                // Log error but don't fail login
+                System.err.println("Failed to send welcome email: " + e.getMessage());
+                e.printStackTrace();
+            }
         }
         
         // Generate JWT token using email as subject
@@ -70,6 +93,7 @@ public class AuthService {
     public AuthResponse handleOAuthLogin(String email, String oauthProviderId, String firstName, String lastName) {
         // Convert email to lowercase to prevent duplicate accounts
         String normalizedEmail = email != null ? email.toLowerCase().trim() : null;
+        boolean isNewUser = normalizedEmail != null && !userRepository.existsByEmail(normalizedEmail);
         User user = userRepository.findByEmail(normalizedEmail)
                 .orElseGet(() -> {
                     User newUser = User.builder()
@@ -97,6 +121,27 @@ public class AuthService {
         
         user.setEmailVerified(true);
         User savedUser = userRepository.save(user);
+        
+        // Send welcome email if this is a new user
+        if (isNewUser) {
+            try {
+                String recipientName = (savedUser.getFirstName() != null ? savedUser.getFirstName() : "") + 
+                                     (savedUser.getLastName() != null ? " " + savedUser.getLastName() : "");
+                if (recipientName.trim().isEmpty()) {
+                    recipientName = savedUser.getEmail();
+                }
+                
+                EmailTemplateData.WelcomeEmailData emailData = new EmailTemplateData.WelcomeEmailData();
+                emailData.setRecipientName(recipientName.trim());
+                emailData.setRecipientEmail(savedUser.getEmail());
+                
+                emailService.sendWelcomeEmail(emailData);
+            } catch (Exception e) {
+                // Log error but don't fail login
+                System.err.println("Failed to send welcome email: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
         
         String token = jwtService.generateToken(savedUser.getEmail());
         

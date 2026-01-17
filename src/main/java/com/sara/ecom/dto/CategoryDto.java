@@ -25,6 +25,7 @@ public class CategoryDto {
     private String description;
     private Integer displayOrder;
     private Boolean isFabric;
+    private String allowedEmails; // Comma-separated list of emails
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<CategoryDto> subcategories;
@@ -46,6 +47,7 @@ public class CategoryDto {
                 .description(category.getDescription())
                 .displayOrder(category.getDisplayOrder())
                 .isFabric(category.getIsFabric())
+                .allowedEmails(category.getAllowedEmails())
                 .createdAt(category.getCreatedAt())
                 .updatedAt(category.getUpdatedAt())
                 .build();

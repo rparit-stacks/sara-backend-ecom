@@ -19,4 +19,7 @@ public class CategoryRequest {
     private Integer displayOrder;
     
     private Boolean isFabric;
+    
+    // Comma-separated list of emails for category access restriction
+    private String allowedEmails;
 }

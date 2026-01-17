@@ -1,9 +1,12 @@
 package com.sara.ecom.service;
 
+import com.sara.ecom.dto.EmailTemplateData;
 import com.sara.ecom.dto.PlainProductDto;
 import com.sara.ecom.dto.ProductDto;
 import com.sara.ecom.dto.WishlistDto;
+import com.sara.ecom.entity.User;
 import com.sara.ecom.entity.WishlistItem;
+import com.sara.ecom.repository.UserRepository;
 import com.sara.ecom.repository.WishlistItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,12 @@ public class WishlistService {
     @Autowired
     private PlainProductService plainProductService;
     
+    @Autowired
+    private EmailService emailService;
+    
+    @Autowired
+    private UserRepository userRepository;
+    
     public List<WishlistDto> getWishlist(String userEmail) {
         return wishlistItemRepository.findByUserEmailOrderByCreatedAtDesc(userEmail).stream()
                 .map(this::toWishlistDto)
@@ -45,7 +54,48 @@ public class WishlistService {
         item.setProductType(type);
         item.setProductId(productId);
         
-        return toWishlistDto(wishlistItemRepository.save(item));
+        WishlistDto wishlistDto = toWishlistDto(wishlistItemRepository.save(item));
+        
+        // Send email notification
+        try {
+            User user = userRepository.findByEmail(userEmail).orElse(null);
+            if (user != null) {
+                String recipientName = (user.getFirstName() != null ? user.getFirstName() : "") + 
+                                     (user.getLastName() != null ? " " + user.getLastName() : "");
+                if (recipientName.trim().isEmpty()) {
+                    recipientName = user.getEmail();
+                }
+                
+                EmailTemplateData.WishlistEmailData emailData = new EmailTemplateData.WishlistEmailData();
+                emailData.setRecipientName(recipientName.trim());
+                emailData.setRecipientEmail(user.getEmail());
+                emailData.setProductName(wishlistDto.getProductName());
+                emailData.setProductImage(wishlistDto.getProductImage());
+                emailData.setPrice(parsePrice(wishlistDto.getProductPrice()));
+                emailData.setProductType(productType);
+                
+                emailService.sendItemAddedToWishlistEmail(emailData);
+            }
+        } catch (Exception e) {
+            // Log error but don't fail wishlist addition
+            System.err.println("Failed to send wishlist email: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return wishlistDto;
+    }
+    
+    private BigDecimal parsePrice(String priceStr) {
+        if (priceStr == null || priceStr.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            // Remove ₹ symbol and parse
+            String cleaned = priceStr.replace("₹", "").replace(",", "").trim();
+            return new BigDecimal(cleaned);
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
     }
     
     @Transactional

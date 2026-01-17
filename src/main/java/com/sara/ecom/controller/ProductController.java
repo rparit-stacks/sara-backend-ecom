@@ -2,6 +2,7 @@ package com.sara.ecom.controller;
 
 import com.sara.ecom.dto.ProductDto;
 import com.sara.ecom.dto.ProductRequest;
+import com.sara.ecom.entity.Product;
 import com.sara.ecom.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -77,6 +78,62 @@ public class ProductController {
         productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
     }
+    
+    /**
+     * Bulk delete products.
+     */
+    @DeleteMapping("/admin/products/bulk")
+    public ResponseEntity<Map<String, Object>> bulkDeleteProducts(@RequestBody Map<String, List<Long>> request) {
+        List<Long> ids = request.get("ids");
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Product IDs are required"));
+        }
+        productService.bulkDeleteProducts(ids);
+        return ResponseEntity.ok(Map.of("message", "Products deleted successfully", "count", ids.size()));
+    }
+    
+    /**
+     * Toggle product status (pause/unpause).
+     */
+    @PostMapping("/admin/products/{id}/toggle-status")
+    public ResponseEntity<ProductDto> toggleProductStatus(@PathVariable Long id) {
+        ProductDto updated = productService.toggleProductStatus(id);
+        return ResponseEntity.ok(updated);
+    }
+    
+    /**
+     * Bulk toggle product status (pause/unpause).
+     */
+    @PostMapping("/admin/products/bulk/toggle-status")
+    public ResponseEntity<Map<String, Object>> bulkToggleProductStatus(@RequestBody Map<String, Object> request) {
+        @SuppressWarnings("unchecked")
+        List<Long> ids = (List<Long>) request.get("ids");
+        String action = (String) request.get("action"); // "pause" or "unpause"
+        
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Product IDs are required"));
+        }
+        if (action == null || (!action.equals("pause") && !action.equals("unpause"))) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Action must be 'pause' or 'unpause'"));
+        }
+        
+        Product.Status targetStatus = action.equals("pause") ? Product.Status.INACTIVE : Product.Status.ACTIVE;
+        productService.bulkToggleProductStatus(ids, targetStatus);
+        
+        return ResponseEntity.ok(Map.of("message", "Products " + action + "d successfully", "count", ids.size()));
+    }
+    
+    /**
+     * Export products to Excel.
+     */
+    @GetMapping("/admin/products/export")
+    public ResponseEntity<org.springframework.core.io.Resource> exportProductsToExcel() {
+        try {
+            return productService.exportProductsToExcel();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
 
     @PostMapping("/admin/products/plain")
     public ResponseEntity<ProductDto> createPlainProduct(@RequestBody ProductRequest request) {
@@ -124,12 +181,18 @@ public class ProductController {
     }
     
     /**
-     * Public endpoint to create a designed product from user-uploaded design.
-     * This allows users to upload their design and automatically create a product.
+     * DEPRECATED: This endpoint now creates CustomProduct instead of regular Product.
+     * Use /api/custom-products endpoint instead.
+     * This endpoint is kept for backward compatibility but redirects to CustomProduct creation.
      */
     @PostMapping("/products/create-from-upload")
-    public ResponseEntity<ProductDto> createProductFromUpload(@RequestBody ProductRequest request) {
-        ProductDto created = productService.createDesignedProductFromUpload(request);
-        return ResponseEntity.ok(created);
+    public ResponseEntity<Map<String, Object>> createProductFromUpload(
+            @RequestBody ProductRequest request,
+            org.springframework.security.core.Authentication authentication) {
+        // This should now create a CustomProduct, not a regular Product
+        // Redirect to CustomProductController
+        return ResponseEntity.badRequest().body(Map.of(
+            "error", "This endpoint is deprecated. Please use /api/custom-products endpoint instead."
+        ));
     }
 }

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Processing</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #2b9d8f;">
+                <h1 style="color: #ffffff; margin: 0;">[[${appName}]]</h1>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 40px 20px; background-color: #ffffff; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333333; margin-top: 0;">Your Order is Being Processed</h2>
+                <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                    Hello [[${recipientName}]],
+                </p>
+                <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                    Your order <strong>[[${data.orderNumber}]]</strong> is currently being processed. We're working hard to get it ready for shipment!
+                </p>
+                
+                <div style="background-color: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
+                    <p style="margin: 0; color: #ff9800; font-weight: bold;">⚙️ Processing</p>
+                    <p style="margin: 5px 0 0 0; color: #666666;">Your order is being prepared with care.</p>
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a th:href="${appUrl + '/orders/' + data.orderNumber}" style="display: inline-block; padding: 12px 30px; background-color: #2b9d8f; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">Track Your Order</a>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 20px; text-align: center; background-color: #f4f4f4; color: #666666; font-size: 12px;">
+                <p style="margin: 5px 0;">© [[${currentYear}]] [[${appName}]]. All rights reserved.</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

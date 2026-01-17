@@ -40,6 +40,80 @@ public class CategoryService {
                 .collect(Collectors.toList());
     }
     
+    /**
+     * Gets active categories filtered by user email.
+     * Only shows categories that are either:
+     * 1. Not restricted (allowedEmails is null or empty)
+     * 2. Restricted but user email is in allowedEmails list
+     */
+    @Transactional
+    public List<CategoryDto> getActiveCategoriesForUser(String userEmail) {
+        List<Category> allCategories = categoryRepository.findByParentIdIsNullAndStatus(Category.Status.ACTIVE);
+        
+        // Filter categories based on email restrictions
+        List<Category> filteredCategories = allCategories.stream()
+                .filter(category -> isCategoryAccessible(category, userEmail))
+                .collect(Collectors.toList());
+        
+        return filteredCategories.stream()
+                .map(this::buildCategoryTree)
+                .map(category -> filterCategoryTreeByEmail(category, userEmail))
+                .filter(category -> category != null) // Remove null categories
+                .map(CategoryDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Checks if a category is accessible to a user based on email restrictions.
+     */
+    private boolean isCategoryAccessible(Category category, String userEmail) {
+        // If no email restriction, category is accessible
+        if (category.getAllowedEmails() == null || category.getAllowedEmails().trim().isEmpty()) {
+            return true;
+        }
+        
+        // If user email is null, only show unrestricted categories
+        if (userEmail == null || userEmail.trim().isEmpty()) {
+            return false;
+        }
+        
+        // Check if user email is in the allowed emails list
+        String[] allowedEmails = category.getAllowedEmails().split(",");
+        for (String email : allowedEmails) {
+            if (email.trim().equalsIgnoreCase(userEmail.trim())) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Recursively filters category tree by email, removing inaccessible subcategories.
+     */
+    private Category filterCategoryTreeByEmail(Category category, String userEmail) {
+        if (category == null) {
+            return null;
+        }
+        
+        // Filter subcategories
+        List<Category> subcategories = categoryRepository.findByParentId(category.getId());
+        List<Category> accessibleSubcategories = subcategories.stream()
+                .filter(sub -> isCategoryAccessible(sub, userEmail))
+                .map(sub -> filterCategoryTreeByEmail(sub, userEmail))
+                .filter(sub -> sub != null)
+                .collect(Collectors.toList());
+        
+        category.setSubcategories(accessibleSubcategories);
+        
+        // If category itself is not accessible, return null
+        if (!isCategoryAccessible(category, userEmail)) {
+            return null;
+        }
+        
+        return category;
+    }
+    
     @Transactional
     public CategoryDto getCategoryById(Long id) {
         Category category = categoryRepository.findById(id)
@@ -264,6 +338,7 @@ public class CategoryService {
                 .description(request.getDescription())
                 .displayOrder(request.getDisplayOrder())
                 .isFabric(request.getIsFabric() != null ? request.getIsFabric() : false)
+                .allowedEmails(request.getAllowedEmails())
                 .build();
         
         category = categoryRepository.save(category);
@@ -320,6 +395,9 @@ public class CategoryService {
         }
         if (request.getIsFabric() != null) {
             category.setIsFabric(request.getIsFabric());
+        }
+        if (request.getAllowedEmails() != null) {
+            category.setAllowedEmails(request.getAllowedEmails());
         }
         
         category = categoryRepository.save(category);

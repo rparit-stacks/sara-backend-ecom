@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -64,6 +65,11 @@ public class SecurityConfig {
                 .requestMatchers("/api/subscribe").permitAll()
                 .requestMatchers("/api/instagram/thumbnail").permitAll()
                 .requestMatchers("/api/coupons/validate").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/custom-products").permitAll() // Allow anyone to create custom products
+                .requestMatchers(HttpMethod.DELETE, "/api/custom-products/unsaved/**").permitAll() // Allow deletion of unsaved products (with userEmail param)
+                .requestMatchers(HttpMethod.GET, "/api/custom-products/*").permitAll() // Allow access to specific custom products (with userEmail param)
+                .requestMatchers("/api/custom-products/**").authenticated() // Other operations require authentication
+                .requestMatchers(HttpMethod.POST, "/api/whatsapp/webhook", "/api/whatsapp/webhook/**").permitAll() // Allow webhook from WASender
                 // Error handling
                 .requestMatchers("/error").permitAll()
                 // All other requests require authentication

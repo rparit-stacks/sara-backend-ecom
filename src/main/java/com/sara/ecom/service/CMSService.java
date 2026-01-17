@@ -1,6 +1,7 @@
 package com.sara.ecom.service;
 
 import com.sara.ecom.dto.CMSDto;
+import com.sara.ecom.dto.EmailTemplateData;
 import com.sara.ecom.entity.*;
 import com.sara.ecom.entity.EmailSubscription;
 import com.sara.ecom.repository.*;
@@ -44,6 +45,9 @@ public class CMSService {
     
     @Autowired
     private EmailSubscriptionRepository emailSubscriptionRepository;
+    
+    @Autowired
+    private EmailService emailService;
     
     // Homepage data
     public CMSDto.HomepageResponse getHomepageData() {
@@ -465,6 +469,19 @@ public class CMSService {
         subscription.setEmail(normalizedEmail);
         subscription.setIsActive(true);
         emailSubscriptionRepository.save(subscription);
+        
+        // Send email notification
+        try {
+            EmailTemplateData.NewsletterSubscriptionData emailData = new EmailTemplateData.NewsletterSubscriptionData();
+            emailData.setRecipientName(normalizedEmail);
+            emailData.setRecipientEmail(normalizedEmail);
+            
+            emailService.sendNewsletterSubscriptionEmail(emailData);
+        } catch (Exception e) {
+            // Log error but don't fail subscription
+            System.err.println("Failed to send newsletter subscription email: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
     
     private CMSDto.BannerDto toBannerDto(Banner b) {

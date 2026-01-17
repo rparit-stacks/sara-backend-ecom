@@ -7,11 +7,22 @@ import com.sara.ecom.dto.CustomConfigDto;
 import com.sara.ecom.entity.*;
 import com.sara.ecom.repository.CategoryRepository;
 import com.sara.ecom.repository.ProductRepository;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -495,6 +506,170 @@ public class ProductService {
             throw new RuntimeException("Product not found with id: " + id);
         }
         productRepository.deleteById(id);
+    }
+    
+    /**
+     * Bulk delete products by IDs.
+     */
+    @Transactional
+    public void bulkDeleteProducts(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw new RuntimeException("Product IDs list cannot be empty");
+        }
+        List<Product> products = productRepository.findAllById(ids);
+        if (products.size() != ids.size()) {
+            throw new RuntimeException("Some products were not found");
+        }
+        productRepository.deleteAll(products);
+    }
+    
+    /**
+     * Toggle product status (pause/unpause).
+     * ACTIVE -> INACTIVE (pause)
+     * INACTIVE -> ACTIVE (unpause)
+     */
+    @Transactional
+    public ProductDto toggleProductStatus(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+        
+        if (product.getStatus() == Product.Status.ACTIVE) {
+            product.setStatus(Product.Status.INACTIVE);
+        } else {
+            product.setStatus(Product.Status.ACTIVE);
+        }
+        
+        product = productRepository.save(product);
+        return toDtoWithDetails(product);
+    }
+    
+    /**
+     * Bulk toggle product status.
+     */
+    @Transactional
+    public void bulkToggleProductStatus(List<Long> ids, Product.Status targetStatus) {
+        if (ids == null || ids.isEmpty()) {
+            throw new RuntimeException("Product IDs list cannot be empty");
+        }
+        List<Product> products = productRepository.findAllById(ids);
+        if (products.size() != ids.size()) {
+            throw new RuntimeException("Some products were not found");
+        }
+        products.forEach(product -> product.setStatus(targetStatus));
+        productRepository.saveAll(products);
+    }
+    
+    /**
+     * Gets all products for Excel export.
+     */
+    @Transactional(readOnly = true)
+    public List<ProductDto> getAllProductsForExport() {
+        List<Product> products = productRepository.findAllWithImages();
+        return products.stream().map(this::toDtoWithDetails).collect(Collectors.toList());
+    }
+    
+    /**
+     * Exports all products to Excel file.
+     */
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> exportProductsToExcel() throws IOException {
+        List<ProductDto> products = getAllProductsForExport();
+        
+        Workbook workbook = new XSSFWorkbook();
+        Sheet sheet = workbook.createSheet("Products");
+        
+        // Create header style
+        CellStyle headerStyle = workbook.createCellStyle();
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        headerFont.setFontHeightInPoints((short) 12);
+        headerStyle.setFont(headerFont);
+        headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        headerStyle.setBorderBottom(BorderStyle.THIN);
+        headerStyle.setBorderTop(BorderStyle.THIN);
+        headerStyle.setBorderLeft(BorderStyle.THIN);
+        headerStyle.setBorderRight(BorderStyle.THIN);
+        
+        // Create header row
+        Row headerRow = sheet.createRow(0);
+        String[] headers = {"ID", "Name", "Slug", "Type", "Status", "Category", "Price", "Design Price", 
+                           "Original Price", "Is New", "Is Sale", "Description", "Created At"};
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+        
+        // Create data rows
+        int rowNum = 1;
+        for (ProductDto product : products) {
+            Row row = sheet.createRow(rowNum++);
+            
+            row.createCell(0).setCellValue(product.getId() != null ? product.getId() : 0);
+            row.createCell(1).setCellValue(product.getName() != null ? product.getName() : "");
+            row.createCell(2).setCellValue(product.getSlug() != null ? product.getSlug() : "");
+            row.createCell(3).setCellValue(product.getType() != null ? product.getType() : "");
+            row.createCell(4).setCellValue(product.getStatus() != null ? product.getStatus() : "");
+            
+            // Category name
+            String categoryName = "";
+            if (product.getCategoryId() != null) {
+                try {
+                    Category category = categoryRepository.findById(product.getCategoryId()).orElse(null);
+                    if (category != null) {
+                        categoryName = category.getName();
+                    }
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
+            row.createCell(5).setCellValue(categoryName);
+            
+            // Prices
+            row.createCell(6).setCellValue(product.getPrice() != null ? product.getPrice().doubleValue() : 0);
+            row.createCell(7).setCellValue(product.getDesignPrice() != null ? product.getDesignPrice().doubleValue() : 0);
+            row.createCell(8).setCellValue(product.getOriginalPrice() != null ? product.getOriginalPrice().doubleValue() : 0);
+            
+            row.createCell(9).setCellValue(product.getIsNew() != null && product.getIsNew() ? "Yes" : "No");
+            row.createCell(10).setCellValue(product.getIsSale() != null && product.getIsSale() ? "Yes" : "No");
+            
+            // Description (truncate if too long)
+            String description = product.getDescription() != null ? product.getDescription() : "";
+            if (description.length() > 100) {
+                description = description.substring(0, 100) + "...";
+            }
+            row.createCell(11).setCellValue(description);
+            
+            // Created at (if available in DTO, otherwise empty)
+            row.createCell(12).setCellValue("");
+        }
+        
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+            // Set minimum width
+            if (sheet.getColumnWidth(i) < 3000) {
+                sheet.setColumnWidth(i, 3000);
+            }
+        }
+        
+        // Write to byte array
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        workbook.write(outputStream);
+        workbook.close();
+        
+        byte[] excelBytes = outputStream.toByteArray();
+        ByteArrayResource resource = new ByteArrayResource(excelBytes);
+        
+        // Generate filename with timestamp
+        String filename = "products_export_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx";
+        
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(excelBytes.length)
+                .body(resource);
     }
     
     private void mapRequestToProduct(ProductRequest request, Product product) {

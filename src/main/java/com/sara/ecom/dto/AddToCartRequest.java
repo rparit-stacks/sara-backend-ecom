@@ -17,6 +17,7 @@ public class AddToCartRequest {
     private String uploadedDesignUrl;
     private Integer quantity;
     private BigDecimal unitPrice;
+    private Long customProductId; // For custom products from Make Your Own
     
     // Getters and Setters
     public String getProductType() { return productType; }
@@ -45,4 +46,6 @@ public class AddToCartRequest {
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
+    public Long getCustomProductId() { return customProductId; }
+    public void setCustomProductId(Long customProductId) { this.customProductId = customProductId; }
 }

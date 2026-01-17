@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sara.ecom.dto.CustomConfigDto;
 import com.sara.ecom.dto.CustomConfigRequest;
 import com.sara.ecom.dto.CustomDesignRequestDto;
+import com.sara.ecom.dto.EmailTemplateData;
 import com.sara.ecom.entity.CustomDesignRequest;
 import com.sara.ecom.entity.CustomFormField;
 import com.sara.ecom.entity.CustomProductConfig;
@@ -17,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,6 +35,9 @@ public class CustomConfigService {
     
     @Autowired
     private CustomDesignRequestRepository designRequestRepository;
+    
+    @Autowired
+    private EmailService emailService;
     
     @Autowired
     private com.sara.ecom.repository.CustomConfigVariantRepository variantRepository;
@@ -253,18 +259,76 @@ public class CustomConfigService {
         entity.setDesignType(request.getDesignType());
         entity.setDescription(request.getDescription());
         entity.setReferenceImage(request.getReferenceImage());
-        return toDesignRequestDto(designRequestRepository.save(entity));
+        CustomDesignRequest saved = designRequestRepository.save(entity);
+        CustomDesignRequestDto dto = toDesignRequestDto(saved);
+        
+        // Send email notification
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
+            String requestDate = saved.getCreatedAt() != null 
+                ? saved.getCreatedAt().format(formatter) 
+                : LocalDateTime.now().format(formatter);
+            
+            EmailTemplateData.DesignRequestEmailData emailData = new EmailTemplateData.DesignRequestEmailData();
+            emailData.setRecipientName(request.getFullName());
+            emailData.setRecipientEmail(request.getEmail());
+            emailData.setRequestId(saved.getId());
+            emailData.setRequestDate(requestDate);
+            emailData.setDesignType(request.getDesignType());
+            emailData.setDescription(request.getDescription());
+            emailData.setReferenceImage(request.getReferenceImage());
+            emailData.setStatus(saved.getStatus().name());
+            
+            emailService.sendDesignRequestSubmittedEmail(emailData);
+        } catch (Exception e) {
+            // Log error but don't fail request submission
+            System.err.println("Failed to send design request email: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return dto;
     }
     
     @Transactional
     public CustomDesignRequestDto updateDesignRequestStatus(Long id, String status, String adminNotes) {
         CustomDesignRequest request = designRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Design request not found"));
+        CustomDesignRequest.Status oldStatus = request.getStatus();
         request.setStatus(CustomDesignRequest.Status.valueOf(status.toUpperCase()));
         if (adminNotes != null) {
             request.setAdminNotes(adminNotes);
         }
-        return toDesignRequestDto(designRequestRepository.save(request));
+        CustomDesignRequest saved = designRequestRepository.save(request);
+        CustomDesignRequestDto dto = toDesignRequestDto(saved);
+        
+        // Send email notification if status changed
+        if (oldStatus != saved.getStatus()) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
+                String requestDate = saved.getCreatedAt() != null 
+                    ? saved.getCreatedAt().format(formatter) 
+                    : LocalDateTime.now().format(formatter);
+                
+                EmailTemplateData.DesignRequestEmailData emailData = new EmailTemplateData.DesignRequestEmailData();
+                emailData.setRecipientName(saved.getFullName());
+                emailData.setRecipientEmail(saved.getEmail());
+                emailData.setRequestId(saved.getId());
+                emailData.setRequestDate(requestDate);
+                emailData.setDesignType(saved.getDesignType());
+                emailData.setDescription(saved.getDescription());
+                emailData.setReferenceImage(saved.getReferenceImage());
+                emailData.setStatus(saved.getStatus().name());
+                emailData.setAdminNotes(saved.getAdminNotes());
+                
+                emailService.sendDesignRequestStatusUpdatedEmail(emailData);
+            } catch (Exception e) {
+                // Log error but don't fail status update
+                System.err.println("Failed to send design request status email: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        
+        return dto;
     }
     
     // Helper methods

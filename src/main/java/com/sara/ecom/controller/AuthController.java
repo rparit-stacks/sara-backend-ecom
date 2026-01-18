@@ -15,7 +15,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"https://design-observer-pro-cyan.vercel.app", "https://studiosara.in", "http://studiosara.in", "https://www.studiosara.in", "http://www.studiosara.in"})
 public class AuthController {
     
     private final AuthService authService;

@@ -15,7 +15,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/user/addresses")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"https://design-observer-pro-cyan.vercel.app", "https://studiosara.in", "http://studiosara.in", "https://www.studiosara.in", "http://www.studiosara.in"})
 public class UserAddressController {
     
     private final UserAddressService addressService;

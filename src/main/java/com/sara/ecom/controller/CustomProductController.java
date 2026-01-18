@@ -16,7 +16,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/custom-products")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"https://design-observer-pro-cyan.vercel.app", "https://studiosara.in", "http://studiosara.in", "https://www.studiosara.in", "http://www.studiosara.in"})
 public class CustomProductController {
     
     private final CustomProductService customProductService;

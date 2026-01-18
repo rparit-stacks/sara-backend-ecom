@@ -14,6 +14,18 @@ public class BusinessConfigDto {
     private Boolean swipeEnabled;
     private Boolean einvoiceEnabled;
     
+    // Payment Gateway Configuration
+    private String razorpayKeyId;
+    private String razorpayKeySecret; // Include in POST/PUT, exclude in GET
+    private Boolean razorpayEnabled;
+    private String stripePublicKey;
+    private String stripeSecretKey; // Include in POST/PUT, exclude in GET
+    private Boolean stripeEnabled;
+    
+    // Currency API Configuration
+    private String currencyApiKey; // Include in POST/PUT, exclude in GET
+    private String currencyApiProvider;
+    
     // Getters and Setters
     public Long getId() {
         return id;
@@ -109,5 +121,71 @@ public class BusinessConfigDto {
     
     public void setEinvoiceEnabled(Boolean einvoiceEnabled) {
         this.einvoiceEnabled = einvoiceEnabled;
+    }
+    
+    // Payment Gateway Getters and Setters
+    public String getRazorpayKeyId() {
+        return razorpayKeyId;
+    }
+    
+    public void setRazorpayKeyId(String razorpayKeyId) {
+        this.razorpayKeyId = razorpayKeyId;
+    }
+    
+    public String getRazorpayKeySecret() {
+        return razorpayKeySecret;
+    }
+    
+    public void setRazorpayKeySecret(String razorpayKeySecret) {
+        this.razorpayKeySecret = razorpayKeySecret;
+    }
+    
+    public Boolean getRazorpayEnabled() {
+        return razorpayEnabled;
+    }
+    
+    public void setRazorpayEnabled(Boolean razorpayEnabled) {
+        this.razorpayEnabled = razorpayEnabled;
+    }
+    
+    public String getStripePublicKey() {
+        return stripePublicKey;
+    }
+    
+    public void setStripePublicKey(String stripePublicKey) {
+        this.stripePublicKey = stripePublicKey;
+    }
+    
+    public String getStripeSecretKey() {
+        return stripeSecretKey;
+    }
+    
+    public void setStripeSecretKey(String stripeSecretKey) {
+        this.stripeSecretKey = stripeSecretKey;
+    }
+    
+    public Boolean getStripeEnabled() {
+        return stripeEnabled;
+    }
+    
+    public void setStripeEnabled(Boolean stripeEnabled) {
+        this.stripeEnabled = stripeEnabled;
+    }
+    
+    // Currency API Getters and Setters
+    public String getCurrencyApiKey() {
+        return currencyApiKey;
+    }
+    
+    public void setCurrencyApiKey(String currencyApiKey) {
+        this.currencyApiKey = currencyApiKey;
+    }
+    
+    public String getCurrencyApiProvider() {
+        return currencyApiProvider;
+    }
+    
+    public void setCurrencyApiProvider(String currencyApiProvider) {
+        this.currencyApiProvider = currencyApiProvider;
     }
 }

@@ -750,4 +750,11 @@ public class OrderService {
         emailData.setInvoiceUrl(orderDto.getSwipeInvoiceUrl());
         return emailData;
     }
+    
+    @Transactional
+    public OrderDto updatePaymentStatusByOrderNumber(String orderNumber, String paymentStatus, String paymentId) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderNumber));
+        return updatePaymentStatus(order.getId(), paymentStatus, paymentId);
+    }
 }

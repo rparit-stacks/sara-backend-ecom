@@ -48,6 +48,12 @@ public class ProductService {
     @Autowired
     private CustomConfigService customConfigService;
     
+    /**
+     * Get all products matching the given filters.
+     * Note: This method only returns Product entities, never CustomProduct entities.
+     * CustomProducts are user-specific and are accessed via CustomProductService.
+     * This ensures CustomProducts never appear in public product listings.
+     */
     public List<ProductDto> getAllProducts(String status, String type, Long categoryId) {
         List<Product> products;
         

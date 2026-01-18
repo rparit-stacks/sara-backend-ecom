@@ -27,10 +27,22 @@ public class BusinessConfigService {
         dto.setBusinessPincode(config.getBusinessPincode());
         dto.setBusinessPhone(config.getBusinessPhone());
         dto.setBusinessEmail(config.getBusinessEmail());
-        // Don't expose API key in GET - return masked or empty
+        // Don't expose API keys in GET - return masked or empty
         dto.setSwipeApiKey(null);
         dto.setSwipeEnabled(config.getSwipeEnabled());
         dto.setEinvoiceEnabled(config.getEinvoiceEnabled());
+        
+        // Payment Gateway fields
+        dto.setRazorpayKeyId(config.getRazorpayKeyId());
+        dto.setRazorpayKeySecret(null); // Don't expose secret
+        dto.setRazorpayEnabled(config.getRazorpayEnabled());
+        dto.setStripePublicKey(config.getStripePublicKey());
+        dto.setStripeSecretKey(null); // Don't expose secret
+        dto.setStripeEnabled(config.getStripeEnabled());
+        
+        // Currency API fields
+        dto.setCurrencyApiKey(null); // Don't expose API key
+        dto.setCurrencyApiProvider(config.getCurrencyApiProvider());
         
         return dto;
     }
@@ -52,6 +64,18 @@ public class BusinessConfigService {
         dto.setSwipeApiKey(config.getSwipeApiKey());
         dto.setSwipeEnabled(config.getSwipeEnabled());
         dto.setEinvoiceEnabled(config.getEinvoiceEnabled());
+        
+        // Payment Gateway fields
+        dto.setRazorpayKeyId(config.getRazorpayKeyId());
+        dto.setRazorpayKeySecret(config.getRazorpayKeySecret());
+        dto.setRazorpayEnabled(config.getRazorpayEnabled());
+        dto.setStripePublicKey(config.getStripePublicKey());
+        dto.setStripeSecretKey(config.getStripeSecretKey());
+        dto.setStripeEnabled(config.getStripeEnabled());
+        
+        // Currency API fields
+        dto.setCurrencyApiKey(config.getCurrencyApiKey());
+        dto.setCurrencyApiProvider(config.getCurrencyApiProvider());
         
         return dto;
     }
@@ -78,6 +102,31 @@ public class BusinessConfigService {
         config.setSwipeEnabled(dto.getSwipeEnabled() != null ? dto.getSwipeEnabled() : false);
         config.setEinvoiceEnabled(dto.getEinvoiceEnabled() != null ? dto.getEinvoiceEnabled() : false);
         
+        // Payment Gateway fields
+        if (dto.getRazorpayKeyId() != null && !dto.getRazorpayKeyId().trim().isEmpty()) {
+            config.setRazorpayKeyId(dto.getRazorpayKeyId());
+        }
+        if (dto.getRazorpayKeySecret() != null && !dto.getRazorpayKeySecret().trim().isEmpty()) {
+            config.setRazorpayKeySecret(dto.getRazorpayKeySecret());
+        }
+        config.setRazorpayEnabled(dto.getRazorpayEnabled() != null ? dto.getRazorpayEnabled() : false);
+        
+        if (dto.getStripePublicKey() != null && !dto.getStripePublicKey().trim().isEmpty()) {
+            config.setStripePublicKey(dto.getStripePublicKey());
+        }
+        if (dto.getStripeSecretKey() != null && !dto.getStripeSecretKey().trim().isEmpty()) {
+            config.setStripeSecretKey(dto.getStripeSecretKey());
+        }
+        config.setStripeEnabled(dto.getStripeEnabled() != null ? dto.getStripeEnabled() : false);
+        
+        // Currency API fields
+        if (dto.getCurrencyApiKey() != null && !dto.getCurrencyApiKey().trim().isEmpty()) {
+            config.setCurrencyApiKey(dto.getCurrencyApiKey());
+        }
+        if (dto.getCurrencyApiProvider() != null && !dto.getCurrencyApiProvider().trim().isEmpty()) {
+            config.setCurrencyApiProvider(dto.getCurrencyApiProvider());
+        }
+        
         BusinessConfig saved = businessConfigRepository.save(config);
         
         BusinessConfigDto response = new BusinessConfigDto();
@@ -93,6 +142,18 @@ public class BusinessConfigService {
         response.setSwipeApiKey(null); // Don't return API key
         response.setSwipeEnabled(saved.getSwipeEnabled());
         response.setEinvoiceEnabled(saved.getEinvoiceEnabled());
+        
+        // Payment Gateway fields
+        response.setRazorpayKeyId(saved.getRazorpayKeyId());
+        response.setRazorpayKeySecret(null); // Don't return secret
+        response.setRazorpayEnabled(saved.getRazorpayEnabled());
+        response.setStripePublicKey(saved.getStripePublicKey());
+        response.setStripeSecretKey(null); // Don't return secret
+        response.setStripeEnabled(saved.getStripeEnabled());
+        
+        // Currency API fields
+        response.setCurrencyApiKey(null); // Don't return API key
+        response.setCurrencyApiProvider(saved.getCurrencyApiProvider());
         
         return response;
     }

@@ -56,6 +56,10 @@ public class WishlistService {
         
         WishlistDto wishlistDto = toWishlistDto(wishlistItemRepository.save(item));
         
+        // Note: CustomProducts cannot be added to wishlist as WishlistItem.ProductType enum
+        // only includes PLAIN, DESIGNED, DIGITAL. CustomProducts are user-specific and
+        // are saved when added to cart (see CartService.addToCart).
+        
         // Send email notification
         try {
             User user = userRepository.findByEmail(userEmail).orElse(null);

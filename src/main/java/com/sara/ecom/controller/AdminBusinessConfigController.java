@@ -18,6 +18,11 @@ public class AdminBusinessConfigController {
         return ResponseEntity.ok(businessConfigService.getConfig());
     }
     
+    @GetMapping("/with-keys")
+    public ResponseEntity<BusinessConfigDto> getConfigWithApiKeys() {
+        return ResponseEntity.ok(businessConfigService.getConfigWithApiKey());
+    }
+    
     @PutMapping
     public ResponseEntity<BusinessConfigDto> updateConfig(@RequestBody BusinessConfigDto dto) {
         return ResponseEntity.ok(businessConfigService.saveConfig(dto));

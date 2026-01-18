@@ -65,6 +65,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/subscribe").permitAll()
                 .requestMatchers("/api/instagram/thumbnail").permitAll()
                 .requestMatchers("/api/coupons/validate").permitAll()
+                .requestMatchers("/api/currency/**").permitAll() // Allow public access to currency rates
                 .requestMatchers(HttpMethod.POST, "/api/custom-products").permitAll() // Allow anyone to create custom products
                 .requestMatchers(HttpMethod.DELETE, "/api/custom-products/unsaved/**").permitAll() // Allow deletion of unsaved products (with userEmail param)
                 .requestMatchers(HttpMethod.GET, "/api/custom-products/*").permitAll() // Allow access to specific custom products (with userEmail param)

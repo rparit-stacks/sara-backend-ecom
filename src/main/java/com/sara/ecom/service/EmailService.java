@@ -30,7 +30,7 @@ public class EmailService {
     @Value("${app.name:Studio Sara}")
     private String appName;
     
-    @Value("${app.url:http://localhost:3000}")
+    @Value("${app.url:https://www.studiosara.in}")
     private String appUrl;
     
     @Value("${app.email:info@codvertex.in}")

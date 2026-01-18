@@ -40,8 +40,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         AuthResponse authResponse = authService.handleOAuthLogin(email, providerId, firstName, lastName);
         
         // Redirect to frontend with token
-        // Default frontend URL is http://localhost:3000, can be overridden with FRONTEND_BASE_URL env var
-        String frontendBaseUrl = System.getenv().getOrDefault("FRONTEND_BASE_URL", "http://localhost:3000");
+        // Default frontend URL is https://www.studiosara.in, can be overridden with FRONTEND_BASE_URL env var
+        String frontendBaseUrl = System.getenv().getOrDefault("FRONTEND_BASE_URL", "https://www.studiosara.in");
         if (frontendBaseUrl.endsWith("/")) {
             frontendBaseUrl = frontendBaseUrl.substring(0, frontendBaseUrl.length() - 1);
         }

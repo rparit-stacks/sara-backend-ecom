@@ -352,7 +352,7 @@ public class CMSService {
         dto.setCreatedAt(link.getCreatedAt());
         // Set full link URL (frontend will construct it, but we can provide it for convenience)
         // Note: In production, you might want to get this from configuration
-        String baseUrl = System.getenv().getOrDefault("FRONTEND_BASE_URL", "http://localhost:3000");
+        String baseUrl = System.getenv().getOrDefault("FRONTEND_BASE_URL", "https://www.studiosara.in");
         if (baseUrl.endsWith("/")) {
             baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         }

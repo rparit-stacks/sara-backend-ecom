@@ -85,7 +85,9 @@ public class OrderController {
             @PathVariable Long id,
             @RequestBody Map<String, String> request) {
         String status = request.get("status");
-        return ResponseEntity.ok(orderService.updateOrderStatus(id, status));
+        Boolean skipWhatsApp = request.get("skipWhatsApp") != null ? 
+            Boolean.parseBoolean(request.get("skipWhatsApp")) : false;
+        return ResponseEntity.ok(orderService.updateOrderStatus(id, status, skipWhatsApp));
     }
     
     @PutMapping("/admin/orders/{id}/payment")
@@ -100,6 +102,24 @@ public class OrderController {
     @PostMapping("/admin/orders/{id}/retry-swipe-invoice")
     public ResponseEntity<OrderDto> retrySwipeInvoice(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.retrySwipeInvoice(id));
+    }
+    
+    @GetMapping("/admin/orders/{id}/check-swipe-invoice")
+    public ResponseEntity<Map<String, Object>> checkSwipeInvoice(@PathVariable Long id) {
+        return ResponseEntity.ok(orderService.checkSwipeInvoiceStatus(id));
+    }
+
+    @PutMapping("/admin/orders/{id}/address")
+    public ResponseEntity<OrderDto> updateOrderShippingAddressAdmin(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> request) {
+        Object shippingAddressObj = request.get("shippingAddress");
+        if (!(shippingAddressObj instanceof Map)) {
+            throw new RuntimeException("shippingAddress is required");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> shippingAddress = (Map<String, Object>) shippingAddressObj;
+        return ResponseEntity.ok(orderService.updateOrderShippingAddressAdmin(id, shippingAddress));
     }
     
     private String getUserEmailFromToken(String authHeader) {

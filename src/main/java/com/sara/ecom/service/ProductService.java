@@ -20,12 +20,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.URL;
+import java.net.HttpURLConnection;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class ProductService {
@@ -416,14 +423,27 @@ public class ProductService {
             }
         }
         
-        // If no design file from Design entity, use first product image
-        if (designFileUrl == null && designProduct.getImages() != null && !designProduct.getImages().isEmpty()) {
-            designFileUrl = designProduct.getImages().get(0).getImageUrl();
+        // Collect ALL design images/files for download
+        List<String> allDesignFileUrls = new ArrayList<>();
+        
+        // Add design file if exists
+        if (designFileUrl != null) {
+            allDesignFileUrls.add(designFileUrl);
         }
         
-        // If still no file, throw error
-        if (designFileUrl == null) {
-            throw new RuntimeException("Design Product does not have a design file or image available for digital download");
+        // Add all product images
+        if (designProduct.getImages() != null && !designProduct.getImages().isEmpty()) {
+            for (ProductImage img : designProduct.getImages()) {
+                String imgUrl = img.getImageUrl();
+                if (imgUrl != null && !allDesignFileUrls.contains(imgUrl)) {
+                    allDesignFileUrls.add(imgUrl);
+                }
+            }
+        }
+        
+        // If still no files, throw error
+        if (allDesignFileUrls.isEmpty()) {
+            throw new RuntimeException("Design Product does not have any design files or images available for digital download");
         }
         
         // Check if Digital Product already exists for this Design Product
@@ -445,29 +465,65 @@ public class ProductService {
         digitalProduct.setType(Product.ProductType.DIGITAL);
         digitalProduct.setCategoryId(designProduct.getCategoryId()); // Same category
         digitalProduct.setDescription(designProduct.getDescription() != null ? 
-            designProduct.getDescription() + " - Digital download only." : 
-            "Digital download of this design.");
+            designProduct.getDescription() + " - Digital download only. All design images included." : 
+            "Digital download of this design. All design images included.");
         digitalProduct.setStatus(Product.Status.ACTIVE);
-        digitalProduct.setPrice(digitalPrice != null ? digitalPrice : 
-            (designProduct.getDesignPrice() != null ? designProduct.getDesignPrice() : BigDecimal.ZERO));
-        digitalProduct.setFileUrl(designFileUrl); // Use design image or product image as downloadable file
+        BigDecimal finalPrice = digitalPrice != null ? digitalPrice : 
+            (designProduct.getDesignPrice() != null ? designProduct.getDesignPrice() : BigDecimal.ZERO);
+        digitalProduct.setPrice(finalPrice);
+        digitalProduct.setOriginalPrice(finalPrice); // Set originalPrice to match price
+        
+        // Store all file URLs as JSON array in fileUrl field
+        // Use TEXT column to avoid VARCHAR(255) length limit
+        // Format: ["url1", "url2", "url3"] or single URL if only one file
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            String fileUrlJson = objectMapper.writeValueAsString(allDesignFileUrls);
+            // Ensure it fits in database - if too long, use first URL only
+            if (fileUrlJson.length() > 10000) {
+                // If JSON is too long, just use the first URL
+                digitalProduct.setFileUrl(allDesignFileUrls.get(0));
+            } else {
+                digitalProduct.setFileUrl(fileUrlJson);
+            }
+        } catch (Exception e) {
+            // Fallback: use first URL only if JSON serialization fails
+            digitalProduct.setFileUrl(allDesignFileUrls.get(0));
+        }
+        
         digitalProduct.setSourceDesignProductId(designProductId); // Link to source Design Product
         
         // Copy images from design product
         if (designProduct.getImages() != null && !designProduct.getImages().isEmpty()) {
             for (ProductImage img : designProduct.getImages()) {
+                // Only add image if imageUrl is not null (required field)
+                if (img.getImageUrl() != null && !img.getImageUrl().trim().isEmpty()) {
                 ProductImage newImg = new ProductImage();
                 newImg.setImageUrl(img.getImageUrl());
-                newImg.setMediaType(img.getMediaType());
-                newImg.setDisplayOrder(img.getDisplayOrder());
+                    newImg.setMediaType(img.getMediaType() != null ? img.getMediaType() : ProductImage.MediaType.IMAGE);
+                    newImg.setDisplayOrder(img.getDisplayOrder() != null ? img.getDisplayOrder() : 0);
                 digitalProduct.addImage(newImg);
             }
-        } else if (designFileUrl != null) {
+            }
+        } else if (designFileUrl != null && !designFileUrl.trim().isEmpty()) {
             // Use design file as product image
             ProductImage img = new ProductImage();
             img.setImageUrl(designFileUrl);
             img.setDisplayOrder(0);
+            img.setMediaType(ProductImage.MediaType.IMAGE);
             digitalProduct.addImage(img);
+        }
+        
+        // If no images were added, add at least one image from fileUrl if available
+        if (digitalProduct.getImages().isEmpty() && !allDesignFileUrls.isEmpty()) {
+            String firstFileUrl = allDesignFileUrls.get(0);
+            if (firstFileUrl != null && !firstFileUrl.trim().isEmpty()) {
+                ProductImage img = new ProductImage();
+                img.setImageUrl(firstFileUrl);
+                img.setDisplayOrder(0);
+                img.setMediaType(ProductImage.MediaType.IMAGE);
+                digitalProduct.addImage(img);
+            }
         }
         
         // Generate unique slug
@@ -1193,5 +1249,165 @@ public class ProductService {
         
         // Return cleaned text - preserve user's actual input, just remove HTML structure
         return cleaned;
+    }
+    
+    /**
+     * Downloads digital product files as a ZIP archive.
+     * Fetches all files from Cloudinary URLs and bundles them into a ZIP.
+     * For design products, includes ALL images from the source design product.
+     */
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> downloadDigitalProductFiles(Long productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+        
+        if (product.getType() != Product.ProductType.DIGITAL) {
+            throw new RuntimeException("Product is not a Digital Product");
+        }
+        
+        List<String> fileUrls = new ArrayList<>();
+        
+        // First, try to get URLs from fileUrl field
+        String fileUrl = product.getFileUrl();
+        if (fileUrl != null && !fileUrl.trim().isEmpty()) {
+            // Parse fileUrl - can be single URL, JSON array, or comma-separated
+            try {
+                // Try parsing as JSON array first
+                ObjectMapper objectMapper = new ObjectMapper();
+                Object parsed = objectMapper.readValue(fileUrl, Object.class);
+                if (parsed instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<String> urls = (List<String>) parsed;
+                    for (String url : urls) {
+                        if (url != null && !url.trim().isEmpty() && !fileUrls.contains(url)) {
+                            fileUrls.add(url);
+                        }
+                    }
+                } else if (parsed instanceof String) {
+                    String url = (String) parsed;
+                    if (!fileUrls.contains(url)) {
+                        fileUrls.add(url);
+                    }
+                }
+            } catch (Exception e) {
+                // Not JSON, try comma-separated or single URL
+                if (fileUrl.contains(",")) {
+                    String[] urls = fileUrl.split(",");
+                    for (String url : urls) {
+                        String trimmed = url.trim();
+                        if (!trimmed.isEmpty() && !fileUrls.contains(trimmed)) {
+                            fileUrls.add(trimmed);
+                        }
+                    }
+                } else {
+                    if (!fileUrls.contains(fileUrl)) {
+                        fileUrls.add(fileUrl);
+                    }
+                }
+            }
+        }
+        
+        // If this digital product was created from a design product, also fetch ALL images from source design product
+        if (product.getSourceDesignProductId() != null) {
+            Product sourceDesignProduct = productRepository.findByIdWithImages(product.getSourceDesignProductId())
+                    .orElse(null);
+            
+            if (sourceDesignProduct != null && sourceDesignProduct.getImages() != null) {
+                // Add all images from source design product
+                for (ProductImage img : sourceDesignProduct.getImages()) {
+                    String imgUrl = img.getImageUrl();
+                    if (imgUrl != null && !imgUrl.trim().isEmpty() && !fileUrls.contains(imgUrl)) {
+                        fileUrls.add(imgUrl);
+                    }
+                }
+                
+                // Also check if source design product has a design entity with image
+                if (sourceDesignProduct.getDesignId() != null) {
+                    Design design = designRepository.findById(sourceDesignProduct.getDesignId())
+                            .orElse(null);
+                    if (design != null && design.getImage() != null && !design.getImage().trim().isEmpty()) {
+                        String designImageUrl = design.getImage();
+                        if (!fileUrls.contains(designImageUrl)) {
+                            fileUrls.add(designImageUrl);
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (fileUrls.isEmpty()) {
+            throw new RuntimeException("No valid file URLs found");
+        }
+        
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ZipOutputStream zos = new ZipOutputStream(baos);
+            
+            for (int i = 0; i < fileUrls.size(); i++) {
+                String url = fileUrls.get(i);
+                try {
+                    // Download file from URL
+                    URL fileUrlObj = URI.create(url).toURL();
+                    HttpURLConnection connection = (HttpURLConnection) fileUrlObj.openConnection();
+                    connection.setRequestMethod("GET");
+                    connection.setConnectTimeout(10000);
+                    connection.setReadTimeout(30000);
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+                    
+                    if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                        continue; // Skip failed downloads
+                    }
+                    
+                    // Get file extension from URL or use default
+                    String fileName = "file_" + (i + 1);
+                    String extension = "";
+                    if (url.contains(".")) {
+                        String[] parts = url.split("\\.");
+                        if (parts.length > 1) {
+                            extension = "." + parts[parts.length - 1].split("\\?")[0]; // Remove query params
+                        }
+                    }
+                    if (extension.isEmpty()) {
+                        extension = ".png"; // Default extension
+                    }
+                    fileName += extension;
+                    
+                    // Add to ZIP
+                    ZipEntry entry = new ZipEntry(fileName);
+                    zos.putNextEntry(entry);
+                    
+                    InputStream inputStream = connection.getInputStream();
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        zos.write(buffer, 0, bytesRead);
+                    }
+                    inputStream.close();
+                    zos.closeEntry();
+                } catch (Exception e) {
+                    // Log error but continue with other files
+                    System.err.println("Failed to download file from URL: " + url + " - " + e.getMessage());
+                }
+            }
+            
+            zos.close();
+            byte[] zipBytes = baos.toByteArray();
+            
+            if (zipBytes.length == 0) {
+                throw new RuntimeException("Failed to download any files");
+            }
+            
+            ByteArrayResource resource = new ByteArrayResource(zipBytes);
+            
+            String zipFileName = product.getName().replaceAll("[^a-zA-Z0-9]", "_") + "_files.zip";
+            
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipFileName + "\"")
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .contentLength(zipBytes.length)
+                    .body(resource);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create ZIP file: " + e.getMessage(), e);
+        }
     }
 }

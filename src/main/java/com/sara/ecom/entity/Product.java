@@ -49,7 +49,7 @@ public class Product {
     @Column(precision = 10, scale = 2)
     private BigDecimal price;
     
-    @Column(name = "file_url")
+    @Column(name = "file_url", columnDefinition = "TEXT")
     private String fileUrl;
     
     // Link to source Design Product if this Digital Product was created from a Design Product

@@ -161,9 +161,8 @@ public class ProductController {
     @PostMapping("/products/{designProductId}/create-digital")
     public ResponseEntity<ProductDto> createDigitalProductFromDesign(
             @PathVariable Long designProductId,
-            @RequestBody(required = false) Map<String, java.math.BigDecimal> request) {
-        java.math.BigDecimal price = request != null && request.containsKey("price") ? 
-            request.get("price") : null;
+            @RequestBody(required = false) com.sara.ecom.dto.CreateDigitalFromDesignRequest request) {
+        java.math.BigDecimal price = request != null ? request.getPrice() : null;
         ProductDto digitalProduct = productService.createDigitalProductFromDesign(designProductId, price);
         return ResponseEntity.ok(digitalProduct);
     }
@@ -178,6 +177,19 @@ public class ProductController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(digitalProduct);
+    }
+    
+    /**
+     * Downloads digital product files as a ZIP archive.
+     * Fetches all files from Cloudinary URLs and bundles them into a ZIP.
+     */
+    @GetMapping("/products/{productId}/download-digital")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadDigitalProductFiles(@PathVariable Long productId) {
+        try {
+            return productService.downloadDigitalProductFiles(productId);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
     }
     
     /**

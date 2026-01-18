@@ -28,6 +28,8 @@ public class OrderDto {
     private String swipeIrn;
     private String swipeQrCode;
     private String swipeInvoiceUrl;
+    private String invoiceStatus; // NOT_CREATED or CREATED
+    private LocalDateTime invoiceCreatedAt;
     private LocalDateTime createdAt;
     
     public static class OrderItemDto {
@@ -115,6 +117,10 @@ public class OrderDto {
     public void setSwipeQrCode(String swipeQrCode) { this.swipeQrCode = swipeQrCode; }
     public String getSwipeInvoiceUrl() { return swipeInvoiceUrl; }
     public void setSwipeInvoiceUrl(String swipeInvoiceUrl) { this.swipeInvoiceUrl = swipeInvoiceUrl; }
+    public String getInvoiceStatus() { return invoiceStatus; }
+    public void setInvoiceStatus(String invoiceStatus) { this.invoiceStatus = invoiceStatus; }
+    public LocalDateTime getInvoiceCreatedAt() { return invoiceCreatedAt; }
+    public void setInvoiceCreatedAt(LocalDateTime invoiceCreatedAt) { this.invoiceCreatedAt = invoiceCreatedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

@@ -1,11 +1,15 @@
 package com.sara.ecom.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sara.ecom.entity.Order;
 import com.sara.ecom.entity.OrderStatusTemplate;
 import com.sara.ecom.entity.SentMessage;
 import com.sara.ecom.entity.User;
 import com.sara.ecom.repository.OrderStatusTemplateRepository;
 import com.sara.ecom.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,9 +17,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
 @Service
 public class WhatsAppNotificationService {
+    
+    private static final Logger logger = LoggerFactory.getLogger(WhatsAppNotificationService.class);
     
     @Autowired
     private OrderStatusTemplateRepository templateRepository;
@@ -25,6 +32,9 @@ public class WhatsAppNotificationService {
     
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private ObjectMapper objectMapper;
     
     /**
      * Get order status template for a specific status type
@@ -77,27 +87,64 @@ public class WhatsAppNotificationService {
             return; // Template disabled
         }
         
-        // Get user
+        // Get user (for name and other details)
         User user = userRepository.findByEmail(order.getUserEmail()).orElse(null);
         if (user == null) {
+            logger.warn("Cannot send WhatsApp notification: User {} not found", order.getUserEmail());
             return; // User not found
         }
         
-        // Get user's phone number
-        String phoneNumber = user.getPhoneNumber();
+        // Get phone number from order's shipping address (single source of truth)
+        String phoneNumber = null;
+        if (order.getShippingAddress() != null && !order.getShippingAddress().trim().isEmpty()) {
+            try {
+                Map<String, Object> shippingAddressMap = objectMapper.readValue(
+                    order.getShippingAddress(), 
+                    new TypeReference<Map<String, Object>>() {}
+                );
+                // Try different possible keys for phone number
+                phoneNumber = (String) shippingAddressMap.getOrDefault("phone", 
+                    shippingAddressMap.getOrDefault("phoneNumber", null));
+            } catch (Exception e) {
+                logger.warn("Failed to parse shipping address JSON for order {}: {}", order.getId(), e.getMessage());
+            }
+        }
+        
+        // Fallback to user's phone number if not found in shipping address
         if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            phoneNumber = user.getPhoneNumber();
+            logger.debug("Using user profile phone number as fallback for order {}", order.getId());
+        }
+        
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            logger.warn("Cannot send WhatsApp notification: No phone number found in order {} shipping address or user profile", order.getId());
             return; // No phone number
+        }
+        
+        // Format phone number (remove spaces, +, etc. - keep only digits)
+        phoneNumber = formatPhoneNumber(phoneNumber);
+        if (phoneNumber == null || phoneNumber.length() < 10) {
+            logger.warn("Cannot send WhatsApp notification: Invalid phone number format '{}' for order {}", 
+                phoneNumber, order.getId());
+            return;
         }
         
         // Replace variables in template
         String message = replaceVariables(template.getMessageTemplate(), order, user);
+        if (message == null || message.trim().isEmpty()) {
+            logger.warn("Cannot send WhatsApp notification: Empty message template for status {}", statusType);
+            return;
+        }
         
         // Send message
         try {
+            logger.info("Sending WhatsApp notification to {} for order {} with status {}", phoneNumber, order.getId(), statusType);
             wasenderService.sendMessage(phoneNumber, message, SentMessage.MessageType.ORDER_NOTIFICATION, order.getId());
+            logger.info("Successfully sent WhatsApp notification to {} for order {}", phoneNumber, order.getId());
         } catch (Exception e) {
-            System.err.println("Failed to send WhatsApp order notification: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Failed to send WhatsApp order notification to {} for order {}: {}", 
+                phoneNumber, order.getId(), e.getMessage(), e);
+            // Don't throw - just log the error
         }
     }
     
@@ -196,5 +243,32 @@ public class WhatsAppNotificationService {
             return "₹0";
         }
         return "₹" + amount.toString();
+    }
+    
+    /**
+     * Format phone number for WhatsApp API
+     * Removes spaces, +, -, and other non-digit characters
+     * Keeps only digits (should be 10-15 digits)
+     */
+    private String formatPhoneNumber(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            return null;
+        }
+        
+        // Remove all non-digit characters
+        String cleaned = phoneNumber.replaceAll("[^0-9]", "");
+        
+        // Remove leading country code if present (91 for India)
+        if (cleaned.length() > 10 && cleaned.startsWith("91")) {
+            cleaned = cleaned.substring(2);
+        }
+        
+        // Validate length (should be 10 digits for Indian numbers)
+        if (cleaned.length() < 10 || cleaned.length() > 15) {
+            logger.warn("Phone number format invalid after cleaning: {} (original: {})", cleaned, phoneNumber);
+            return null;
+        }
+        
+        return cleaned;
     }
 }

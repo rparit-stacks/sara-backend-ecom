@@ -53,9 +53,6 @@ public class OrderService {
     private UserAddressService userAddressService;
     
     @Autowired
-    private CategoryService categoryService;
-    
-    @Autowired
     private com.sara.ecom.repository.CategoryRepository categoryRepository;
     
     @Autowired
@@ -318,15 +315,25 @@ public class OrderService {
             e.printStackTrace();
         }
         
-        // Send WhatsApp notification for order placed
+        // Send WhatsApp notification for order placed (outside transaction to prevent rollback)
+        // Use @Async or run in separate thread to ensure it doesn't affect order creation
         try {
-            whatsAppNotificationService.sendOrderStatusNotification(
-                    saved,
-                    com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_PLACED
-            );
+            // Run in separate thread to ensure it doesn't affect transaction
+            new Thread(() -> {
+                try {
+                    whatsAppNotificationService.sendOrderStatusNotification(
+                            saved,
+                            com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_PLACED
+                    );
+                } catch (Exception e) {
+                    // Log error but don't fail order creation
+                    System.err.println("Failed to send WhatsApp order notification: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }).start();
         } catch (Exception e) {
             // Log error but don't fail order creation
-            System.err.println("Failed to send WhatsApp order notification: " + e.getMessage());
+            System.err.println("Failed to start WhatsApp notification thread: " + e.getMessage());
             e.printStackTrace();
         }
         
@@ -371,6 +378,10 @@ public class OrderService {
     
     @Transactional
     public OrderDto updateOrderStatus(Long orderId, String status) {
+        return updateOrderStatus(orderId, status, false);
+    }
+    
+    public OrderDto updateOrderStatus(Long orderId, String status, boolean skipWhatsApp) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
@@ -381,23 +392,55 @@ public class OrderService {
         Order savedOrder = orderRepository.save(order);
         
         // If order is being confirmed and Swipe is enabled, create invoice
+        // BUT: Only create if invoice_status is NOT_CREATED (prevent duplicates)
         if (oldStatus != Order.OrderStatus.CONFIRMED && newStatus == Order.OrderStatus.CONFIRMED) {
-            try {
-                com.sara.ecom.dto.SwipeDto.SwipeInvoiceResponse swipeResponse = swipeService.createInvoice(savedOrder);
-                if (swipeResponse != null && swipeResponse.getSuccess() != null && swipeResponse.getSuccess()) {
-                    if (swipeResponse.getData() != null) {
-                        savedOrder.setSwipeInvoiceId(swipeResponse.getData().getHashId());
-                        savedOrder.setSwipeInvoiceNumber(swipeResponse.getData().getSerialNumber());
-                        savedOrder.setSwipeIrn(swipeResponse.getData().getIrn());
-                        savedOrder.setSwipeQrCode(swipeResponse.getData().getQrCode());
-                        savedOrder.setSwipeInvoiceUrl(swipeResponse.getData().getPdfUrl());
+            // Check invoice status - if already CREATED, skip invoice creation
+            if (savedOrder.getInvoiceStatus() == null || 
+                savedOrder.getInvoiceStatus() == Order.InvoiceStatus.NOT_CREATED) {
+                // Invoice not created yet - create it now
+                try {
+                    com.sara.ecom.dto.SwipeDto.SwipeInvoiceResponse swipeResponse = swipeService.createInvoice(savedOrder);
+                    if (swipeResponse != null && swipeResponse.getSuccess() != null && swipeResponse.getSuccess()) {
+                        // Mark invoice as CREATED first (even if data is null, invoice was created)
+                        savedOrder.setInvoiceStatus(Order.InvoiceStatus.CREATED);
+                        savedOrder.setInvoiceCreatedAt(java.time.LocalDateTime.now());
+                        
+                        // Update invoice details if data is available
+                        if (swipeResponse.getData() != null) {
+                            savedOrder.setSwipeInvoiceId(swipeResponse.getData().getHashId());
+                            savedOrder.setSwipeInvoiceNumber(swipeResponse.getData().getSerialNumber());
+                            savedOrder.setSwipeIrn(swipeResponse.getData().getIrn());
+                            savedOrder.setSwipeQrCode(swipeResponse.getData().getQrCode());
+                            savedOrder.setSwipeInvoiceUrl(swipeResponse.getData().getPdfUrl());
+                        }
+                        
                         savedOrder = orderRepository.save(savedOrder);
                     }
+                } catch (Exception e) {
+                    // Log error but don't fail order update
+                    System.err.println("Error creating Swipe invoice: " + e.getMessage());
+                    e.printStackTrace();
                 }
-            } catch (Exception e) {
-                // Log error but don't fail order update
-                System.err.println("Error creating Swipe invoice: " + e.getMessage());
-                e.printStackTrace();
+            } else {
+                // Invoice already CREATED - skip creation, just proceed with order confirmation
+                // This handles the fail-safe recovery scenario:
+                // Invoice was created earlier, but order confirmation failed (e.g., WhatsApp failed)
+                // Now on retry, we skip duplicate invoice creation and proceed with confirmation
+                System.out.println("Invoice already created for order " + savedOrder.getId() + 
+                    ", skipping duplicate creation. Proceeding with order confirmation.");
+                
+                // Also handle legacy orders: if swipeInvoiceId exists but status is NOT_CREATED,
+                // update status to CREATED (migration for old orders)
+                if (savedOrder.getSwipeInvoiceId() != null && !savedOrder.getSwipeInvoiceId().trim().isEmpty() &&
+                    (savedOrder.getInvoiceStatus() == null || 
+                     savedOrder.getInvoiceStatus() == Order.InvoiceStatus.NOT_CREATED)) {
+                    savedOrder.setInvoiceStatus(Order.InvoiceStatus.CREATED);
+                    if (savedOrder.getInvoiceCreatedAt() == null) {
+                        savedOrder.setInvoiceCreatedAt(java.time.LocalDateTime.now());
+                    }
+                    savedOrder = orderRepository.save(savedOrder);
+                    System.out.println("Updated invoice status to CREATED for legacy order " + savedOrder.getId());
+                }
             }
         }
         
@@ -436,36 +479,40 @@ public class OrderService {
             e.printStackTrace();
         }
         
-        // Send WhatsApp notification for order status update
-        try {
-            com.sara.ecom.entity.OrderStatusTemplate.StatusType whatsappStatusType = null;
-            switch (newStatus) {
-                case CONFIRMED:
-                    whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_CONFIRMED;
-                    break;
-                case PROCESSING:
-                    // Processing is same as confirmed, no separate notification
-                    break;
-                case SHIPPED:
-                    whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_SHIPPED;
-                    break;
-                case DELIVERED:
-                    whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.DELIVERED;
-                    break;
-                case CANCELLED:
-                    whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.CANCELLED;
-                    break;
-                default:
-                    break;
+        // Send WhatsApp notification for order status update (only if not skipped)
+        if (!skipWhatsApp) {
+            try {
+                com.sara.ecom.entity.OrderStatusTemplate.StatusType whatsappStatusType = null;
+                switch (newStatus) {
+                    case CONFIRMED:
+                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_CONFIRMED;
+                        break;
+                    case PROCESSING:
+                        // Processing is same as confirmed, no separate notification
+                        break;
+                    case SHIPPED:
+                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_SHIPPED;
+                        break;
+                    case DELIVERED:
+                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.DELIVERED;
+                        break;
+                    case CANCELLED:
+                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.CANCELLED;
+                        break;
+                    default:
+                        break;
+                }
+                
+                if (whatsappStatusType != null) {
+                    whatsAppNotificationService.sendOrderStatusNotification(savedOrder, whatsappStatusType);
+                }
+            } catch (Exception e) {
+                // Log error but don't fail order update - WhatsApp failure should never rollback order
+                System.err.println("Failed to send WhatsApp order status notification: " + e.getMessage());
+                e.printStackTrace();
             }
-            
-            if (whatsappStatusType != null) {
-                whatsAppNotificationService.sendOrderStatusNotification(savedOrder, whatsappStatusType);
-            }
-        } catch (Exception e) {
-            // Log error but don't fail order update
-            System.err.println("Failed to send WhatsApp order status notification: " + e.getMessage());
-            e.printStackTrace();
+        } else {
+            System.out.println("Skipping WhatsApp notification for order " + savedOrder.getId() + " as requested");
         }
         
         return orderDto;
@@ -577,20 +624,86 @@ public class OrderService {
         try {
             com.sara.ecom.dto.SwipeDto.SwipeInvoiceResponse swipeResponse = swipeService.createInvoice(order);
             if (swipeResponse != null && swipeResponse.getSuccess() != null && swipeResponse.getSuccess()) {
+                System.out.print("Mark invoice as CREATED first (even if data is null, invoice was created)");
+                order.setInvoiceStatus(Order.InvoiceStatus.CREATED);
+                if (order.getInvoiceCreatedAt() == null) {
+                    order.setInvoiceCreatedAt(java.time.LocalDateTime.now());
+                }
+                
+                // Update invoice details if data is available
                 if (swipeResponse.getData() != null) {
                     order.setSwipeInvoiceId(swipeResponse.getData().getHashId());
                     order.setSwipeInvoiceNumber(swipeResponse.getData().getSerialNumber());
                     order.setSwipeIrn(swipeResponse.getData().getIrn());
                     order.setSwipeQrCode(swipeResponse.getData().getQrCode());
                     order.setSwipeInvoiceUrl(swipeResponse.getData().getPdfUrl());
-                    order = orderRepository.save(order);
                 }
+                
+                order = orderRepository.save(order);
             }
         } catch (Exception e) {
             throw new RuntimeException("Error creating Swipe invoice: " + e.getMessage(), e);
         }
         
         return toOrderDto(order);
+    }
+
+    @Transactional
+    public OrderDto updateOrderShippingAddressAdmin(Long orderId, Map<String, Object> shippingAddress) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if (shippingAddress == null) {
+            throw new RuntimeException("Shipping address is required");
+        }
+
+        // Normalize keys and validate mandatory fields
+        Map<String, Object> normalized = new HashMap<>(shippingAddress);
+
+        String phone = (String) normalized.getOrDefault("phone", normalized.get("phoneNumber"));
+        String address = (String) normalized.get("address");
+        String city = (String) normalized.get("city");
+        String state = (String) normalized.get("state");
+        String postalCode = (String) normalized.getOrDefault("postalCode", normalized.get("zipCode"));
+        String country = (String) normalized.getOrDefault("country", "India");
+
+        if (phone == null || phone.trim().isEmpty()) throw new RuntimeException("Phone is required");
+        if (address == null || address.trim().isEmpty()) throw new RuntimeException("Address is required");
+        if (city == null || city.trim().isEmpty()) throw new RuntimeException("City is required");
+        if (state == null || state.trim().isEmpty()) throw new RuntimeException("State is required");
+        if (postalCode == null || postalCode.trim().isEmpty()) throw new RuntimeException("Postal code is required");
+
+        normalized.put("phone", phone.trim());
+        normalized.put("address", address.trim());
+        normalized.put("city", city.trim());
+        normalized.put("state", state.trim());
+        normalized.put("country", country != null ? country.trim() : "India");
+
+        // Keep both keys for compatibility across frontend + SwipeService
+        normalized.put("postalCode", postalCode.trim());
+        normalized.put("zipCode", postalCode.trim());
+
+        // Ensure addressLine2 exists (Swipe expects it; we default empty string)
+        Object addressLine2Obj = normalized.getOrDefault("addressLine2", normalized.get("address_line2"));
+        String addressLine2 = addressLine2Obj != null ? String.valueOf(addressLine2Obj).trim() : "";
+        normalized.put("addressLine2", addressLine2);
+
+        try {
+            order.setShippingAddress(objectMapper.writeValueAsString(normalized));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to save shipping address", e);
+        }
+
+        // Also update userName on order if name is provided (helps admin UI)
+        String firstName = (String) normalized.get("firstName");
+        String lastName = (String) normalized.get("lastName");
+        if (firstName != null && !firstName.trim().isEmpty()) {
+            String fullName = firstName.trim() + (lastName != null && !lastName.trim().isEmpty() ? " " + lastName.trim() : "");
+            order.setUserName(fullName.trim());
+        }
+
+        Order saved = orderRepository.save(order);
+        return toOrderDto(saved);
     }
     
     private OrderDto toOrderDto(Order order) {
@@ -614,6 +727,8 @@ public class OrderService {
         dto.setSwipeIrn(order.getSwipeIrn());
         dto.setSwipeQrCode(order.getSwipeQrCode());
         dto.setSwipeInvoiceUrl(order.getSwipeInvoiceUrl());
+        dto.setInvoiceStatus(order.getInvoiceStatus() != null ? order.getInvoiceStatus().name() : "NOT_CREATED");
+        dto.setInvoiceCreatedAt(order.getInvoiceCreatedAt());
         dto.setCreatedAt(order.getCreatedAt());
         
         // Parse addresses
@@ -756,5 +871,52 @@ public class OrderService {
         Order order = orderRepository.findByOrderNumber(orderNumber)
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderNumber));
         return updatePaymentStatus(order.getId(), paymentStatus, paymentId);
+    }
+    
+    /**
+     * Check if invoice exists in Swipe for this order
+     * Returns status indicating if invoice was created
+     */
+    public Map<String, Object> checkSwipeInvoiceStatus(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        
+        Map<String, Object> result = new HashMap<>();
+        
+        // Check our database first
+        boolean hasInvoiceInDb = (order.getInvoiceStatus() != null && 
+            order.getInvoiceStatus() == Order.InvoiceStatus.CREATED) ||
+            (order.getSwipeInvoiceId() != null && !order.getSwipeInvoiceId().trim().isEmpty());
+        
+        result.put("hasInvoiceInDb", hasInvoiceInDb);
+        result.put("invoiceStatus", order.getInvoiceStatus() != null ? order.getInvoiceStatus().name() : "NOT_CREATED");
+        result.put("swipeInvoiceId", order.getSwipeInvoiceId());
+        result.put("swipeInvoiceNumber", order.getSwipeInvoiceNumber());
+        
+        // If we have hash_id, try to verify with Swipe
+        if (order.getSwipeInvoiceId() != null && !order.getSwipeInvoiceId().trim().isEmpty()) {
+            try {
+                com.sara.ecom.dto.SwipeDto.SwipeInvoiceResponse swipeResponse = 
+                    swipeService.getInvoiceDetails(order.getSwipeInvoiceId());
+                if (swipeResponse != null && swipeResponse.getSuccess() != null && swipeResponse.getSuccess()) {
+                    result.put("existsInSwipe", true);
+                    result.put("swipeInvoiceData", swipeResponse.getData());
+                } else {
+                    result.put("existsInSwipe", false);
+                }
+            } catch (Exception e) {
+                // If we can't verify with Swipe, assume it exists if we have hash_id
+                result.put("existsInSwipe", true);
+                result.put("swipeCheckError", e.getMessage());
+            }
+        } else {
+            result.put("existsInSwipe", false);
+        }
+        
+        // Final verdict: invoice exists if either in DB or Swipe
+        boolean invoiceExists = hasInvoiceInDb || (Boolean) result.getOrDefault("existsInSwipe", false);
+        result.put("invoiceExists", invoiceExists);
+        
+        return result;
     }
 }

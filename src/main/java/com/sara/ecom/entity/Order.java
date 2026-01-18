@@ -84,6 +84,13 @@ public class Order {
     @Column(name = "swipe_invoice_url", columnDefinition = "TEXT")
     private String swipeInvoiceUrl;
     
+    @Enumerated(EnumType.STRING)
+    @Column(name = "invoice_status", nullable = false)
+    private InvoiceStatus invoiceStatus = InvoiceStatus.NOT_CREATED;
+    
+    @Column(name = "invoice_created_at")
+    private LocalDateTime invoiceCreatedAt;
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
@@ -96,6 +103,10 @@ public class Order {
     
     public enum PaymentStatus {
         PENDING, PAID, FAILED, REFUNDED
+    }
+    
+    public enum InvoiceStatus {
+        NOT_CREATED, CREATED
     }
     
     @PrePersist
@@ -310,6 +321,22 @@ public class Order {
     
     public void setSwipeInvoiceUrl(String swipeInvoiceUrl) {
         this.swipeInvoiceUrl = swipeInvoiceUrl;
+    }
+    
+    public InvoiceStatus getInvoiceStatus() {
+        return invoiceStatus;
+    }
+    
+    public void setInvoiceStatus(InvoiceStatus invoiceStatus) {
+        this.invoiceStatus = invoiceStatus;
+    }
+    
+    public LocalDateTime getInvoiceCreatedAt() {
+        return invoiceCreatedAt;
+    }
+    
+    public void setInvoiceCreatedAt(LocalDateTime invoiceCreatedAt) {
+        this.invoiceCreatedAt = invoiceCreatedAt;
     }
     
     public LocalDateTime getCreatedAt() {

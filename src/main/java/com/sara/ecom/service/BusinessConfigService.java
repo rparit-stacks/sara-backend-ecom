@@ -27,8 +27,12 @@ public class BusinessConfigService {
         dto.setBusinessPincode(config.getBusinessPincode());
         dto.setBusinessPhone(config.getBusinessPhone());
         dto.setBusinessEmail(config.getBusinessEmail());
-        // Don't expose API keys in GET - return masked or empty
+        // Don't expose API keys in GET - return placeholder if key exists
+        if (config.getSwipeApiKey() != null && !config.getSwipeApiKey().trim().isEmpty()) {
+            dto.setSwipeApiKey("***API_KEY_SET***"); // Placeholder to indicate key exists
+        } else {
         dto.setSwipeApiKey(null);
+        }
         dto.setSwipeEnabled(config.getSwipeEnabled());
         dto.setEinvoiceEnabled(config.getEinvoiceEnabled());
         
@@ -94,9 +98,10 @@ public class BusinessConfigService {
         config.setBusinessPhone(dto.getBusinessPhone());
         config.setBusinessEmail(dto.getBusinessEmail());
         
-        // Only update API key if provided (not empty/null)
-        if (dto.getSwipeApiKey() != null && !dto.getSwipeApiKey().trim().isEmpty()) {
-            config.setSwipeApiKey(dto.getSwipeApiKey());
+        // Only update API key if provided (not empty/null and not the placeholder)
+        if (dto.getSwipeApiKey() != null && !dto.getSwipeApiKey().trim().isEmpty() 
+            && !dto.getSwipeApiKey().equals("***API_KEY_SET***")) {
+            config.setSwipeApiKey(dto.getSwipeApiKey().trim());
         }
         
         config.setSwipeEnabled(dto.getSwipeEnabled() != null ? dto.getSwipeEnabled() : false);

@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/payment")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = {"https://design-observer-pro-cyan.vercel.app", "https://studiosara.in", "http://studiosara.in", "https://www.studiosara.in", "http://www.studiosara.in"})
 public class PaymentController {
     
     private final PaymentServiceManager paymentServiceManager;

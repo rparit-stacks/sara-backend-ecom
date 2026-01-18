@@ -109,11 +109,18 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // Allow specific frontend URLs
+        configuration.setAllowedOrigins(Arrays.asList(
+            "https://design-observer-pro-cyan.vercel.app",
+            "https://studiosara.in",
+            "http://studiosara.in",
+            "https://www.studiosara.in",
+            "http://www.studiosara.in"
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization"));
-        configuration.setAllowCredentials(false);
+        configuration.setAllowCredentials(true);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

@@ -71,7 +71,6 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/custom-products/unsaved/**").permitAll() // Allow deletion of unsaved products (with userEmail param)
                 .requestMatchers(HttpMethod.GET, "/api/custom-products/*").permitAll() // Allow access to specific custom products (with userEmail param)
                 .requestMatchers("/api/custom-products/**").authenticated() // Other operations require authentication
-                .requestMatchers(HttpMethod.POST, "/api/whatsapp/webhook", "/api/whatsapp/webhook/**").permitAll() // Allow webhook from WASender
                 // Error handling
                 .requestMatchers("/error").permitAll()
                 // All other requests require authentication

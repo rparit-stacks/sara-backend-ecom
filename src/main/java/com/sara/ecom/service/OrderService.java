@@ -61,8 +61,8 @@ public class OrderService {
     @Autowired
     private EmailService emailService;
     
-    @Autowired
-    private com.sara.ecom.service.WhatsAppNotificationService whatsAppNotificationService;
+    // Placeholder hooks for future notification integrations (currently no-op)
+    private final NotificationHooks notificationHooks = new NotificationHooks();
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -315,27 +315,8 @@ public class OrderService {
             e.printStackTrace();
         }
         
-        // Send WhatsApp notification for order placed (outside transaction to prevent rollback)
-        // Use @Async or run in separate thread to ensure it doesn't affect order creation
-        try {
-            // Run in separate thread to ensure it doesn't affect transaction
-            new Thread(() -> {
-                try {
-                    whatsAppNotificationService.sendOrderStatusNotification(
-                            saved,
-                            com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_PLACED
-                    );
-                } catch (Exception e) {
-                    // Log error but don't fail order creation
-                    System.err.println("Failed to send WhatsApp order notification: " + e.getMessage());
-                    e.printStackTrace();
-                }
-            }).start();
-        } catch (Exception e) {
-            // Log error but don't fail order creation
-            System.err.println("Failed to start WhatsApp notification thread: " + e.getMessage());
-            e.printStackTrace();
-        }
+        // Trigger notification hook (currently no-op, WhatsApp removed)
+        notificationHooks.onOrderPlaced(saved);
         
         return orderDto;
     }
@@ -479,41 +460,8 @@ public class OrderService {
             e.printStackTrace();
         }
         
-        // Send WhatsApp notification for order status update (only if not skipped)
-        if (!skipWhatsApp) {
-            try {
-                com.sara.ecom.entity.OrderStatusTemplate.StatusType whatsappStatusType = null;
-                switch (newStatus) {
-                    case CONFIRMED:
-                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_CONFIRMED;
-                        break;
-                    case PROCESSING:
-                        // Processing is same as confirmed, no separate notification
-                        break;
-                    case SHIPPED:
-                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.ORDER_SHIPPED;
-                        break;
-                    case DELIVERED:
-                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.DELIVERED;
-                        break;
-                    case CANCELLED:
-                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.CANCELLED;
-                        break;
-                    default:
-                        break;
-                }
-                
-                if (whatsappStatusType != null) {
-                    whatsAppNotificationService.sendOrderStatusNotification(savedOrder, whatsappStatusType);
-                }
-            } catch (Exception e) {
-                // Log error but don't fail order update - WhatsApp failure should never rollback order
-                System.err.println("Failed to send WhatsApp order status notification: " + e.getMessage());
-                e.printStackTrace();
-            }
-        } else {
-            System.out.println("Skipping WhatsApp notification for order " + savedOrder.getId() + " as requested");
-        }
+        // Trigger notification hook (currently no-op, WhatsApp removed)
+        notificationHooks.onOrderStatusChanged(savedOrder);
         
         return orderDto;
     }
@@ -586,31 +534,8 @@ public class OrderService {
                 e.printStackTrace();
             }
             
-            // Send WhatsApp notification for payment status update
-            try {
-                com.sara.ecom.entity.OrderStatusTemplate.StatusType whatsappStatusType = null;
-                switch (order.getPaymentStatus()) {
-                    case PAID:
-                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.PAYMENT_SUCCESS;
-                        break;
-                    case FAILED:
-                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.PAYMENT_FAILED;
-                        break;
-                    case REFUNDED:
-                        whatsappStatusType = com.sara.ecom.entity.OrderStatusTemplate.StatusType.REFUND_COMPLETED;
-                        break;
-                    default:
-                        break;
-                }
-                
-                if (whatsappStatusType != null) {
-                    whatsAppNotificationService.sendOrderStatusNotification(savedOrder, whatsappStatusType);
-                }
-            } catch (Exception e) {
-                // Log error but don't fail payment status update
-                System.err.println("Failed to send WhatsApp payment status notification: " + e.getMessage());
-                e.printStackTrace();
-            }
+            // Trigger notification hook (currently no-op, WhatsApp removed)
+            notificationHooks.onPaymentStatusChanged(savedOrder);
         }
         
         return orderDto;

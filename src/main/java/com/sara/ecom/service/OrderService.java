@@ -10,9 +10,10 @@ import com.sara.ecom.dto.CreateOrderRequest;
 import com.sara.ecom.dto.EmailTemplateData;
 import com.sara.ecom.dto.OrderDto;
 import com.sara.ecom.dto.UserAddressDto;
-import com.sara.ecom.entity.BusinessConfig;
 import com.sara.ecom.entity.Order;
 import com.sara.ecom.entity.OrderItem;
+import com.sara.ecom.entity.OrderPaymentHistory;
+import com.sara.ecom.entity.PaymentConfig;
 import com.sara.ecom.entity.User;
 import com.sara.ecom.repository.OrderRepository;
 import com.sara.ecom.repository.UserRepository;
@@ -69,9 +70,39 @@ public class OrderService {
     private ProductService productService;
     
     @Autowired
-    private BusinessConfigService businessConfigService;
+    private PaymentConfigService paymentConfigService;
+    
+    @Autowired
+    private com.sara.ecom.repository.OrderPaymentHistoryRepository paymentHistoryRepository;
+    
+    @Autowired
+    private com.sara.ecom.repository.OrderAuditLogRepository auditLogRepository;
+    
+    @Autowired
+    private JwtService jwtService;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
+    
+    /**
+     * Log an audit entry for order changes (public for controller use)
+     */
+    public void logAuditEntry(Long orderId, String changedBy, String changeType, 
+                               String fieldName, String oldValue, String newValue, String changeReason) {
+        try {
+            com.sara.ecom.entity.OrderAuditLog log = new com.sara.ecom.entity.OrderAuditLog();
+            log.setOrderId(orderId);
+            log.setChangedBy(changedBy != null ? changedBy : "system");
+            log.setChangeType(changeType);
+            log.setFieldName(fieldName);
+            log.setOldValue(oldValue);
+            log.setNewValue(newValue);
+            log.setChangeReason(changeReason);
+            auditLogRepository.save(log);
+        } catch (Exception e) {
+            // Don't fail the operation if audit logging fails
+            System.err.println("Failed to log audit entry: " + e.getMessage());
+        }
+    }
     
     @Transactional
     public OrderDto createOrder(String userEmail, CreateOrderRequest request) {
@@ -286,13 +317,13 @@ public class OrderService {
         BigDecimal orderTotal = cart.getSubtotal().add(gst).add(shipping).subtract(couponDiscount);
         order.setTotal(orderTotal);
         
-        // Check BusinessConfig for partial COD settings
-        BusinessConfig businessConfig = businessConfigService.getConfigEntity();
+        // Check PaymentConfig for partial COD settings
+        PaymentConfig paymentConfig = paymentConfigService.getConfigEntity();
         
         // For digital products, always use full online payment (ignore COD settings)
-        if (!hasDigitalProducts && businessConfig.getPartialCodEnabled() != null && businessConfig.getPartialCodEnabled()) {
+        if (!hasDigitalProducts && paymentConfig.getPartialCodEnabled() != null && paymentConfig.getPartialCodEnabled()) {
             // Partial COD: Calculate advance payment
-            Integer advancePercentage = businessConfig.getPartialCodAdvancePercentage();
+            Integer advancePercentage = paymentConfig.getPartialCodAdvancePercentage();
             if (advancePercentage != null && advancePercentage >= 10 && advancePercentage <= 90) {
                 BigDecimal advanceAmount = orderTotal.multiply(BigDecimal.valueOf(advancePercentage))
                         .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
@@ -436,14 +467,18 @@ public class OrderService {
     
     @Transactional
     public OrderDto updateOrderStatus(Long orderId, String status) {
-        return updateOrderStatus(orderId, status, null, null, false);
+        return updateOrderStatus(orderId, status, null, null, false, "system");
     }
     
     public OrderDto updateOrderStatus(Long orderId, String status, boolean skipWhatsApp) {
-        return updateOrderStatus(orderId, status, null, null, skipWhatsApp);
+        return updateOrderStatus(orderId, status, null, null, skipWhatsApp, "system");
     }
     
     public OrderDto updateOrderStatus(Long orderId, String status, String customStatus, String customMessage, boolean skipWhatsApp) {
+        return updateOrderStatus(orderId, status, customStatus, customMessage, skipWhatsApp, "system");
+    }
+    
+    public OrderDto updateOrderStatus(Long orderId, String status, String customStatus, String customMessage, boolean skipWhatsApp, String changedBy) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
@@ -452,12 +487,37 @@ public class OrderService {
         Order.OrderStatus newStatus = Order.OrderStatus.valueOf(status.toUpperCase());
         order.setStatus(newStatus);
         
+        // Log audit entry
+        if (oldStatus != newStatus) {
+            logAuditEntry(orderId, changedBy, "STATUS_UPDATE", "status", oldStatusString, newStatus.name(), 
+                         customMessage != null ? customMessage : "Status updated");
+        }
+        
+        // Handle cancellation - set cancellation fields if status is CANCELLED
+        if (newStatus == Order.OrderStatus.CANCELLED && oldStatus != Order.OrderStatus.CANCELLED) {
+            // If cancelling for the first time, set cancelled_at timestamp
+            if (order.getCancelledAt() == null) {
+                order.setCancelledAt(LocalDateTime.now());
+            }
+            // cancelled_by and cancellation_reason should be set via separate endpoint if needed
+        }
+        
         // Set custom status if provided
         if (customStatus != null && !customStatus.trim().isEmpty()) {
+            String oldCustomStatus = order.getCustomStatus();
             order.setCustomStatus(customStatus.trim());
+            if (!customStatus.trim().equals(oldCustomStatus)) {
+                logAuditEntry(orderId, changedBy, "STATUS_UPDATE", "customStatus", oldCustomStatus, customStatus.trim(), 
+                             customMessage != null ? customMessage : "Custom status updated");
+            }
         } else {
             // Clear custom status when setting standard status
-            order.setCustomStatus(null);
+            String oldCustomStatus = order.getCustomStatus();
+            if (oldCustomStatus != null) {
+                order.setCustomStatus(null);
+                logAuditEntry(orderId, changedBy, "STATUS_UPDATE", "customStatus", oldCustomStatus, null, 
+                             "Custom status cleared");
+            }
         }
         
         Order savedOrder = orderRepository.save(order);
@@ -562,12 +622,24 @@ public class OrderService {
      */
     @Transactional
     public OrderDto updateCustomStatus(Long orderId, String customStatus, String customMessage, boolean skipWhatsApp) {
+        return updateCustomStatus(orderId, customStatus, customMessage, skipWhatsApp, "system");
+    }
+    
+    @Transactional
+    public OrderDto updateCustomStatus(Long orderId, String customStatus, String customMessage, boolean skipWhatsApp, String changedBy) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
         String oldStatusString = order.getStatus() != null ? order.getStatus().name() : null;
+        String oldCustomStatus = order.getCustomStatus();
         
         order.setCustomStatus(customStatus != null ? customStatus.trim() : null);
+        
+        // Log audit entry
+        if (!customStatus.trim().equals(oldCustomStatus)) {
+            logAuditEntry(orderId, changedBy, "STATUS_UPDATE", "customStatus", oldCustomStatus, customStatus.trim(), 
+                         customMessage != null ? customMessage : "Custom status updated");
+        }
         
         Order savedOrder = orderRepository.save(order);
         OrderDto orderDto = toOrderDto(savedOrder);
@@ -619,13 +691,79 @@ public class OrderService {
     
     @Transactional
     public OrderDto updatePaymentStatus(Long orderId, String paymentStatus, String paymentId) {
+        return updatePaymentStatus(orderId, paymentStatus, paymentId, null, "system");
+    }
+    
+    @Transactional
+    public OrderDto updatePaymentStatus(Long orderId, String paymentStatus, String paymentId, BigDecimal paymentAmount) {
+        return updatePaymentStatus(orderId, paymentStatus, paymentId, paymentAmount, "system");
+    }
+    
+    @Transactional
+    public OrderDto updatePaymentStatus(Long orderId, String paymentStatus, String paymentId, BigDecimal paymentAmount, String changedBy) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         Order.PaymentStatus oldPaymentStatus = order.getPaymentStatus();
+        String oldPaymentId = order.getPaymentId();
+        BigDecimal oldPaymentAmount = order.getPaymentAmount();
+        
         order.setPaymentStatus(Order.PaymentStatus.valueOf(paymentStatus.toUpperCase()));
         if (paymentId != null) {
             order.setPaymentId(paymentId);
         }
+        if (paymentAmount != null) {
+            order.setPaymentAmount(paymentAmount);
+        }
+        
+        // Log audit entries
+        if (oldPaymentStatus != order.getPaymentStatus()) {
+            logAuditEntry(orderId, changedBy, "PAYMENT_UPDATE", "paymentStatus", 
+                         oldPaymentStatus != null ? oldPaymentStatus.name() : null, 
+                         order.getPaymentStatus().name(), "Payment status updated");
+        }
+        if (paymentId != null && !paymentId.equals(oldPaymentId)) {
+            logAuditEntry(orderId, changedBy, "PAYMENT_UPDATE", "paymentId", oldPaymentId, paymentId, 
+                         "Payment transaction ID updated");
+        }
+        if (paymentAmount != null && !paymentAmount.equals(oldPaymentAmount)) {
+            logAuditEntry(orderId, changedBy, "PAYMENT_UPDATE", "paymentAmount", 
+                         oldPaymentAmount != null ? oldPaymentAmount.toString() : null, 
+                         paymentAmount.toString(), "Payment amount updated");
+        }
+        
+        // Create payment history entry for partial COD or when payment status changes to PAID
+        if (order.getPaymentMethod() != null && order.getPaymentMethod().equals("PARTIAL_COD") 
+            && paymentAmount != null && paymentAmount.compareTo(BigDecimal.ZERO) > 0) {
+            // Check if this is advance payment or remaining payment
+            BigDecimal orderTotal = order.getTotal() != null ? order.getTotal() : BigDecimal.ZERO;
+            String paymentType = paymentAmount.compareTo(orderTotal) < 0 ? "ADVANCE" : "FULL";
+            
+            OrderPaymentHistory history = new OrderPaymentHistory();
+            history.setOrderId(orderId);
+            history.setPaymentType(paymentType);
+            history.setAmount(paymentAmount);
+            history.setCurrency(order.getPaymentCurrency() != null ? order.getPaymentCurrency() : "INR");
+            history.setTransactionId(paymentId);
+            history.setPaymentMethod(order.getPaymentMethod());
+            history.setPaidAt(LocalDateTime.now());
+            history.setNotes("Payment status updated to " + paymentStatus);
+            paymentHistoryRepository.save(history);
+        } else if (oldPaymentStatus != Order.PaymentStatus.PAID 
+                   && order.getPaymentStatus() == Order.PaymentStatus.PAID
+                   && paymentAmount != null && paymentAmount.compareTo(BigDecimal.ZERO) > 0) {
+            // Create payment history for full payment
+            OrderPaymentHistory history = new OrderPaymentHistory();
+            history.setOrderId(orderId);
+            history.setPaymentType("FULL");
+            history.setAmount(paymentAmount);
+            history.setCurrency(order.getPaymentCurrency() != null ? order.getPaymentCurrency() : "INR");
+            history.setTransactionId(paymentId);
+            history.setPaymentMethod(order.getPaymentMethod());
+            history.setPaidAt(LocalDateTime.now());
+            history.setNotes("Payment completed");
+            paymentHistoryRepository.save(history);
+        }
+        
         Order savedOrder = orderRepository.save(order);
         
         // Generate password-protected ZIP for digital products when payment is completed
@@ -678,7 +816,7 @@ public class OrderService {
      * Only called when payment status changes to PAID.
      */
     @Transactional
-    private void generateDigitalProductZip(Order order) {
+    protected void generateDigitalProductZip(Order order) {
         if (order.getItems() == null || order.getItems().isEmpty()) {
             return;
         }
@@ -776,7 +914,311 @@ public class OrderService {
     }
 
     @Transactional
+    public OrderDto updateOrderNotes(Long orderId, String notes) {
+        return updateOrderNotes(orderId, notes, "system");
+    }
+    
+    @Transactional
+    public OrderDto updateOrderNotes(Long orderId, String notes, String changedBy) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        String oldNotes = order.getNotes();
+        order.setNotes(notes);
+        
+        // Log audit entry
+        if (oldNotes == null || !notes.equals(oldNotes)) {
+            logAuditEntry(orderId, changedBy, "NOTES_UPDATE", "notes", oldNotes, notes, "Order notes updated");
+        }
+        
+        Order savedOrder = orderRepository.save(order);
+        return toOrderDto(savedOrder);
+    }
+    
+    @Transactional
+    public OrderDto updateCancellationInfo(Long orderId, String cancellationReason, String cancelledBy) {
+        return updateCancellationInfo(orderId, cancellationReason, cancelledBy, "system");
+    }
+    
+    @Transactional
+    public OrderDto updateCancellationInfo(Long orderId, String cancellationReason, String cancelledBy, String changedBy) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        String oldCancellationReason = order.getCancellationReason();
+        String oldCancelledBy = order.getCancelledBy();
+        
+        order.setCancellationReason(cancellationReason);
+        order.setCancelledBy(cancelledBy);
+        if (order.getCancelledAt() == null && order.getStatus() == Order.OrderStatus.CANCELLED) {
+            order.setCancelledAt(LocalDateTime.now());
+        }
+        
+        // Log audit entries
+        if (cancellationReason != null && !cancellationReason.equals(oldCancellationReason)) {
+            logAuditEntry(orderId, changedBy, "CANCELLATION_UPDATE", "cancellationReason", 
+                         oldCancellationReason, cancellationReason, "Cancellation reason updated");
+        }
+        if (cancelledBy != null && !cancelledBy.equals(oldCancelledBy)) {
+            logAuditEntry(orderId, changedBy, "CANCELLATION_UPDATE", "cancelledBy", oldCancelledBy, cancelledBy, 
+                         "Cancelled by updated");
+        }
+        
+        Order savedOrder = orderRepository.save(order);
+        return toOrderDto(savedOrder);
+    }
+    
+    public List<com.sara.ecom.dto.OrderPaymentHistoryDto> getPaymentHistory(Long orderId) {
+        List<OrderPaymentHistory> history = paymentHistoryRepository.findByOrderIdOrderByPaidAtDesc(orderId);
+        return history.stream().map(this::toPaymentHistoryDto).collect(Collectors.toList());
+    }
+    
+    public List<com.sara.ecom.dto.OrderAuditLogDto> getAuditLog(Long orderId) {
+        List<com.sara.ecom.entity.OrderAuditLog> logs = auditLogRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+        return logs.stream().map(this::toAuditLogDto).collect(Collectors.toList());
+    }
+    
+    private com.sara.ecom.dto.OrderAuditLogDto toAuditLogDto(com.sara.ecom.entity.OrderAuditLog log) {
+        com.sara.ecom.dto.OrderAuditLogDto dto = new com.sara.ecom.dto.OrderAuditLogDto();
+        dto.setId(log.getId());
+        dto.setOrderId(log.getOrderId());
+        dto.setChangedBy(log.getChangedBy());
+        dto.setChangeType(log.getChangeType());
+        dto.setFieldName(log.getFieldName());
+        dto.setOldValue(log.getOldValue());
+        dto.setNewValue(log.getNewValue());
+        dto.setChangeReason(log.getChangeReason());
+        dto.setCreatedAt(log.getCreatedAt());
+        return dto;
+    }
+    
+    @Transactional
+    public com.sara.ecom.dto.OrderPaymentHistoryDto addPaymentHistory(Long orderId, String paymentType,
+                                                                       BigDecimal amount, String currency,
+                                                                       String transactionId, String paymentMethod,
+                                                                       LocalDateTime paidAt, String notes) {
+        OrderPaymentHistory history = new OrderPaymentHistory();
+        history.setOrderId(orderId);
+        history.setPaymentType(paymentType);
+        history.setAmount(amount);
+        history.setCurrency(currency != null ? currency : "INR");
+        history.setTransactionId(transactionId);
+        history.setPaymentMethod(paymentMethod);
+        history.setPaidAt(paidAt != null ? paidAt : LocalDateTime.now());
+        history.setNotes(notes);
+        OrderPaymentHistory saved = paymentHistoryRepository.save(history);
+        return toPaymentHistoryDto(saved);
+    }
+    
+    private com.sara.ecom.dto.OrderPaymentHistoryDto toPaymentHistoryDto(OrderPaymentHistory history) {
+        com.sara.ecom.dto.OrderPaymentHistoryDto dto = new com.sara.ecom.dto.OrderPaymentHistoryDto();
+        dto.setId(history.getId());
+        dto.setOrderId(history.getOrderId());
+        dto.setPaymentType(history.getPaymentType());
+        dto.setAmount(history.getAmount());
+        dto.setCurrency(history.getCurrency());
+        dto.setTransactionId(history.getTransactionId());
+        dto.setPaymentMethod(history.getPaymentMethod());
+        dto.setPaidAt(history.getPaidAt());
+        dto.setNotes(history.getNotes());
+        dto.setCreatedAt(history.getCreatedAt());
+        return dto;
+    }
+    
+    @Transactional
+    public OrderDto updateOrderItem(Long orderId, Long itemId, Integer quantity, BigDecimal price, String name) {
+        return updateOrderItem(orderId, itemId, quantity, price, name, "system");
+    }
+    
+    @Transactional
+    public OrderDto updateOrderItem(Long orderId, Long itemId, Integer quantity, BigDecimal price, String name, String changedBy) {
+        Order order = orderRepository.findByIdWithItems(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        
+        OrderItem item = order.getItems().stream()
+                .filter(i -> i.getId().equals(itemId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Order item not found"));
+        
+        Integer oldQuantity = item.getQuantity();
+        BigDecimal oldPrice = item.getPrice();
+        String oldName = item.getName();
+        
+        if (quantity != null && quantity > 0) {
+            item.setQuantity(quantity);
+        }
+        if (price != null && price.compareTo(BigDecimal.ZERO) >= 0) {
+            item.setPrice(price);
+        }
+        if (name != null && !name.trim().isEmpty()) {
+            item.setName(name.trim());
+        }
+        
+        // Log audit entries
+        if (quantity != null && !quantity.equals(oldQuantity)) {
+            logAuditEntry(orderId, changedBy, "ITEM_UPDATE", "item_" + itemId + "_quantity", 
+                         oldQuantity != null ? oldQuantity.toString() : null, quantity.toString(), 
+                         "Item quantity updated");
+        }
+        if (price != null && !price.equals(oldPrice)) {
+            logAuditEntry(orderId, changedBy, "ITEM_UPDATE", "item_" + itemId + "_price", 
+                         oldPrice != null ? oldPrice.toString() : null, price.toString(), 
+                         "Item price updated");
+        }
+        if (name != null && !name.trim().equals(oldName)) {
+            logAuditEntry(orderId, changedBy, "ITEM_UPDATE", "item_" + itemId + "_name", oldName, name.trim(), 
+                         "Item name updated");
+        }
+        
+        // Recalculate item total
+        if (item.getQuantity() != null && item.getPrice() != null) {
+            item.setTotalPrice(item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+        }
+        
+        // Recalculate order subtotal
+        BigDecimal oldSubtotal = order.getSubtotal();
+        BigDecimal newSubtotal = order.getItems().stream()
+                .map(OrderItem::getTotalPrice)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        order.setSubtotal(newSubtotal);
+        
+        // Recalculate order total
+        BigDecimal gst = order.getGst() != null ? order.getGst() : BigDecimal.ZERO;
+        BigDecimal shipping = order.getShipping() != null ? order.getShipping() : BigDecimal.ZERO;
+        BigDecimal couponDiscount = order.getCouponDiscount() != null ? order.getCouponDiscount() : BigDecimal.ZERO;
+        BigDecimal oldTotal = order.getTotal();
+        BigDecimal newTotal = newSubtotal.add(gst).add(shipping).subtract(couponDiscount);
+        order.setTotal(newTotal);
+        
+        // Log subtotal and total changes
+        if (!newSubtotal.equals(oldSubtotal)) {
+            logAuditEntry(orderId, changedBy, "PRICE_UPDATE", "subtotal", 
+                         oldSubtotal != null ? oldSubtotal.toString() : null, newSubtotal.toString(), 
+                         "Subtotal recalculated from items");
+        }
+        if (!newTotal.equals(oldTotal)) {
+            logAuditEntry(orderId, changedBy, "PRICE_UPDATE", "total", 
+                         oldTotal != null ? oldTotal.toString() : null, newTotal.toString(), 
+                         "Total recalculated");
+        }
+        
+        Order savedOrder = orderRepository.save(order);
+        return toOrderDto(savedOrder);
+    }
+    
+    @Transactional
+    public OrderDto updateOrderPricing(Long orderId, BigDecimal subtotal, BigDecimal gst, BigDecimal shipping, BigDecimal total) {
+        return updateOrderPricing(orderId, subtotal, gst, shipping, total, "system");
+    }
+    
+    @Transactional
+    public OrderDto updateOrderPricing(Long orderId, BigDecimal subtotal, BigDecimal gst, BigDecimal shipping, BigDecimal total, String changedBy) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        
+        BigDecimal oldSubtotal = order.getSubtotal();
+        BigDecimal oldGst = order.getGst();
+        BigDecimal oldShipping = order.getShipping();
+        BigDecimal oldTotal = order.getTotal();
+        
+        if (subtotal != null && subtotal.compareTo(BigDecimal.ZERO) >= 0) {
+            order.setSubtotal(subtotal);
+        }
+        if (gst != null && gst.compareTo(BigDecimal.ZERO) >= 0) {
+            order.setGst(gst);
+        }
+        if (shipping != null && shipping.compareTo(BigDecimal.ZERO) >= 0) {
+            order.setShipping(shipping);
+        }
+        
+        // Recalculate total if not provided
+        if (total == null) {
+            BigDecimal calculatedSubtotal = order.getSubtotal() != null ? order.getSubtotal() : BigDecimal.ZERO;
+            BigDecimal calculatedGst = order.getGst() != null ? order.getGst() : BigDecimal.ZERO;
+            BigDecimal calculatedShipping = order.getShipping() != null ? order.getShipping() : BigDecimal.ZERO;
+            BigDecimal couponDiscount = order.getCouponDiscount() != null ? order.getCouponDiscount() : BigDecimal.ZERO;
+            total = calculatedSubtotal.add(calculatedGst).add(calculatedShipping).subtract(couponDiscount);
+        }
+        
+        order.setTotal(total);
+        
+        // Log audit entries
+        if (subtotal != null && !subtotal.equals(oldSubtotal)) {
+            logAuditEntry(orderId, changedBy, "PRICE_UPDATE", "subtotal", 
+                         oldSubtotal != null ? oldSubtotal.toString() : null, subtotal.toString(), 
+                         "Subtotal manually updated");
+        }
+        if (gst != null && !gst.equals(oldGst)) {
+            logAuditEntry(orderId, changedBy, "PRICE_UPDATE", "gst", 
+                         oldGst != null ? oldGst.toString() : null, gst.toString(), 
+                         "GST manually updated");
+        }
+        if (shipping != null && !shipping.equals(oldShipping)) {
+            logAuditEntry(orderId, changedBy, "PRICE_UPDATE", "shipping", 
+                         oldShipping != null ? oldShipping.toString() : null, shipping.toString(), 
+                         "Shipping charges manually updated");
+        }
+        if (!total.equals(oldTotal)) {
+            logAuditEntry(orderId, changedBy, "PRICE_UPDATE", "total", 
+                         oldTotal != null ? oldTotal.toString() : null, total.toString(), 
+                         "Total manually updated");
+        }
+        
+        Order savedOrder = orderRepository.save(order);
+        return toOrderDto(savedOrder);
+    }
+    
+    @Transactional
+    public OrderDto recalculateOrderTotals(Long orderId) {
+        return recalculateOrderTotals(orderId, "system");
+    }
+    
+    @Transactional
+    public OrderDto recalculateOrderTotals(Long orderId, String changedBy) {
+        Order order = orderRepository.findByIdWithItems(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        
+        BigDecimal oldSubtotal = order.getSubtotal();
+        BigDecimal oldTotal = order.getTotal();
+        
+        // Recalculate item totals
+        for (OrderItem item : order.getItems()) {
+            if (item.getQuantity() != null && item.getPrice() != null) {
+                item.setTotalPrice(item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+            }
+        }
+        
+        // Recalculate order subtotal from items
+        BigDecimal newSubtotal = order.getItems().stream()
+                .map(OrderItem::getTotalPrice)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        order.setSubtotal(newSubtotal);
+        
+        // Recalculate order total
+        BigDecimal gst = order.getGst() != null ? order.getGst() : BigDecimal.ZERO;
+        BigDecimal shipping = order.getShipping() != null ? order.getShipping() : BigDecimal.ZERO;
+        BigDecimal couponDiscount = order.getCouponDiscount() != null ? order.getCouponDiscount() : BigDecimal.ZERO;
+        BigDecimal newTotal = newSubtotal.add(gst).add(shipping).subtract(couponDiscount);
+        order.setTotal(newTotal);
+        
+        // Log audit entry
+        logAuditEntry(orderId, changedBy, "PRICE_UPDATE", "recalculate", 
+                     "Subtotal: " + (oldSubtotal != null ? oldSubtotal.toString() : "null") + 
+                     ", Total: " + (oldTotal != null ? oldTotal.toString() : "null"),
+                     "Subtotal: " + newSubtotal.toString() + ", Total: " + newTotal.toString(), 
+                     "Order totals recalculated");
+        
+        Order savedOrder = orderRepository.save(order);
+        return toOrderDto(savedOrder);
+    }
+    
+    @Transactional
     public OrderDto updateOrderShippingAddressAdmin(Long orderId, Map<String, Object> shippingAddress) {
+        return updateOrderShippingAddressAdmin(orderId, shippingAddress, "system");
+    }
+    
+    @Transactional
+    public OrderDto updateOrderShippingAddressAdmin(Long orderId, Map<String, Object> shippingAddress, String changedBy) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
@@ -815,6 +1257,7 @@ public class OrderService {
         String addressLine2 = addressLine2Obj != null ? String.valueOf(addressLine2Obj).trim() : "";
         normalized.put("addressLine2", addressLine2);
 
+        String oldShippingAddress = order.getShippingAddress();
         try {
             order.setShippingAddress(objectMapper.writeValueAsString(normalized));
         } catch (JsonProcessingException e) {
@@ -824,13 +1267,142 @@ public class OrderService {
         // Also update userName on order if name is provided (helps admin UI)
         String firstName = (String) normalized.get("firstName");
         String lastName = (String) normalized.get("lastName");
+        String oldUserName = order.getUserName();
         if (firstName != null && !firstName.trim().isEmpty()) {
             String fullName = firstName.trim() + (lastName != null && !lastName.trim().isEmpty() ? " " + lastName.trim() : "");
             order.setUserName(fullName.trim());
         }
+        
+        // Log audit entry
+        logAuditEntry(orderId, changedBy, "ADDRESS_UPDATE", "shippingAddress", oldShippingAddress, 
+                     order.getShippingAddress(), "Shipping address updated");
+        if (order.getUserName() != null && !order.getUserName().equals(oldUserName)) {
+            logAuditEntry(orderId, changedBy, "ADDRESS_UPDATE", "userName", oldUserName, order.getUserName(), 
+                         "User name updated from address");
+        }
 
         Order saved = orderRepository.save(order);
         return toOrderDto(saved);
+    }
+    
+    @Transactional
+    public OrderDto updateOrderBillingAddressAdmin(Long orderId, Map<String, Object> billingAddress) {
+        return updateOrderBillingAddressAdmin(orderId, billingAddress, "system");
+    }
+    
+    @Transactional
+    public OrderDto updateOrderBillingAddressAdmin(Long orderId, Map<String, Object> billingAddress, String changedBy) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if (billingAddress == null) {
+            throw new RuntimeException("Billing address is required");
+        }
+
+        // Normalize keys and validate mandatory fields
+        Map<String, Object> normalized = new HashMap<>(billingAddress);
+
+        String phone = (String) normalized.getOrDefault("phone", normalized.get("phoneNumber"));
+        String address = (String) normalized.get("address");
+        String city = (String) normalized.get("city");
+        String state = (String) normalized.get("state");
+        String postalCode = (String) normalized.getOrDefault("postalCode", normalized.get("zipCode"));
+        String country = (String) normalized.getOrDefault("country", "India");
+
+        if (phone == null || phone.trim().isEmpty()) throw new RuntimeException("Phone is required");
+        if (address == null || address.trim().isEmpty()) throw new RuntimeException("Address is required");
+        if (city == null || city.trim().isEmpty()) throw new RuntimeException("City is required");
+        if (state == null || state.trim().isEmpty()) throw new RuntimeException("State is required");
+        if (postalCode == null || postalCode.trim().isEmpty()) throw new RuntimeException("Postal code is required");
+
+        normalized.put("phone", phone.trim());
+        normalized.put("address", address.trim());
+        normalized.put("city", city.trim());
+        normalized.put("state", state.trim());
+        normalized.put("country", country != null ? country.trim() : "India");
+
+        // Keep both keys for compatibility
+        normalized.put("postalCode", postalCode.trim());
+        normalized.put("zipCode", postalCode.trim());
+
+        // Ensure addressLine2 exists
+        Object addressLine2Obj = normalized.getOrDefault("addressLine2", normalized.get("address_line2"));
+        String addressLine2 = addressLine2Obj != null ? String.valueOf(addressLine2Obj).trim() : "";
+        normalized.put("addressLine2", addressLine2);
+
+        String oldBillingAddress = order.getBillingAddress();
+        try {
+            order.setBillingAddress(objectMapper.writeValueAsString(normalized));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to save billing address", e);
+        }
+        
+        // Log audit entry
+        logAuditEntry(orderId, changedBy, "ADDRESS_UPDATE", "billingAddress", oldBillingAddress, 
+                     order.getBillingAddress(), "Billing address updated");
+
+        Order saved = orderRepository.save(order);
+        return toOrderDto(saved);
+    }
+    
+ /*   @Transactional
+    public OrderDto updateRefundInfo(Long orderId, BigDecimal refundAmount, LocalDateTime refundDate, 
+                                     String refundTransactionId, String refundReason) {
+        return updateRefundInfo(orderId, refundAmount, refundDate, refundTransactionId, refundReason, "system");
+    }
+    */
+    @Transactional
+    public OrderDto updateRefundInfo(Long orderId, BigDecimal refundAmount, LocalDateTime refundDate, 
+                                     String refundTransactionId, String refundReason) {
+        return updateRefundInfo(orderId, refundAmount, refundDate, refundTransactionId, refundReason, "system");
+    }
+    
+    @Transactional
+    public OrderDto updateRefundInfo(Long orderId, BigDecimal refundAmount, LocalDateTime refundDate, 
+                                     String refundTransactionId, String refundReason, String changedBy) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        BigDecimal oldRefundAmount = order.getRefundAmount();
+        String oldRefundTransactionId = order.getRefundTransactionId();
+        String oldRefundReason = order.getRefundReason();
+        
+        order.setRefundAmount(refundAmount);
+        order.setRefundDate(refundDate);
+        order.setRefundTransactionId(refundTransactionId);
+        order.setRefundReason(refundReason);
+        // If refund amount is set, update payment status to REFUNDED
+        if (refundAmount != null && refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+            order.setPaymentStatus(Order.PaymentStatus.REFUNDED);
+            // Create payment history entry for refund
+            OrderPaymentHistory refundHistory = new OrderPaymentHistory();
+            refundHistory.setOrderId(orderId);
+            refundHistory.setPaymentType("REFUND");
+            refundHistory.setAmount(refundAmount);
+            refundHistory.setCurrency(order.getPaymentCurrency() != null ? order.getPaymentCurrency() : "INR");
+            refundHistory.setTransactionId(refundTransactionId);
+            refundHistory.setPaymentMethod(order.getPaymentMethod());
+            refundHistory.setPaidAt(refundDate != null ? refundDate : LocalDateTime.now());
+            refundHistory.setNotes(refundReason);
+            paymentHistoryRepository.save(refundHistory);
+        }
+        
+        // Log audit entries
+        if (refundAmount != null && !refundAmount.equals(oldRefundAmount)) {
+            logAuditEntry(orderId, changedBy, "REFUND_UPDATE", "refundAmount", 
+                         oldRefundAmount != null ? oldRefundAmount.toString() : null, refundAmount.toString(), 
+                         "Refund amount updated");
+        }
+        if (refundTransactionId != null && !refundTransactionId.equals(oldRefundTransactionId)) {
+            logAuditEntry(orderId, changedBy, "REFUND_UPDATE", "refundTransactionId", oldRefundTransactionId, 
+                         refundTransactionId, "Refund transaction ID updated");
+        }
+        if (refundReason != null && !refundReason.equals(oldRefundReason)) {
+            logAuditEntry(orderId, changedBy, "REFUND_UPDATE", "refundReason", oldRefundReason, refundReason, 
+                         "Refund reason updated");
+        }
+        
+        Order savedOrder = orderRepository.save(order);
+        return toOrderDto(savedOrder);
     }
     
     private OrderDto toOrderDto(Order order) {
@@ -849,6 +1421,7 @@ public class OrderService {
         dto.setCustomStatus(order.getCustomStatus());
         dto.setPaymentStatus(order.getPaymentStatus().name());
         dto.setPaymentMethod(order.getPaymentMethod());
+        dto.setPaymentId(order.getPaymentId());
         dto.setNotes(order.getNotes());
         dto.setSwipeInvoiceId(order.getSwipeInvoiceId());
         dto.setSwipeInvoiceNumber(order.getSwipeInvoiceNumber());
@@ -858,9 +1431,15 @@ public class OrderService {
         dto.setInvoiceStatus(order.getInvoiceStatus() != null ? order.getInvoiceStatus().name() : "NOT_CREATED");
         dto.setInvoiceCreatedAt(order.getInvoiceCreatedAt());
         dto.setCreatedAt(order.getCreatedAt());
-        // Payment currency and amount as recorded from gateway (fallbacks handled on frontend)
         dto.setPaymentCurrency(order.getPaymentCurrency());
         dto.setPaymentAmount(order.getPaymentAmount());
+        dto.setCancellationReason(order.getCancellationReason());
+        dto.setCancelledBy(order.getCancelledBy());
+        dto.setCancelledAt(order.getCancelledAt());
+        dto.setRefundAmount(order.getRefundAmount());
+        dto.setRefundDate(order.getRefundDate());
+        dto.setRefundTransactionId(order.getRefundTransactionId());
+        dto.setRefundReason(order.getRefundReason());
         
         // Parse addresses
         if (order.getShippingAddress() != null) {

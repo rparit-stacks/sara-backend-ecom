@@ -3,12 +3,14 @@ package com.sara.ecom.service;
 import com.sara.ecom.dto.PaymentRequest;
 import com.sara.ecom.dto.PaymentResponse;
 import com.sara.ecom.dto.PaymentVerificationRequest;
+import com.sara.ecom.entity.PaymentConfig;
 import com.sara.ecom.enums.PaymentGateway;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -19,6 +21,9 @@ import java.util.stream.Collectors;
 public class PaymentServiceManager {
     
     private final List<PaymentService> paymentServices;
+    
+    @Autowired
+    private PaymentConfigService paymentConfigService;
     
     /**
      * Get payment service for a specific gateway
@@ -44,26 +49,58 @@ public class PaymentServiceManager {
      */
     public List<PaymentGateway> getAvailableGateways(String country) {
         boolean isIndia = "India".equalsIgnoreCase(country) || "IN".equalsIgnoreCase(country);
+        PaymentConfig config = paymentConfigService.getConfigEntity();
         
-        return getEnabledServices().stream()
-            .filter(service -> {
-                PaymentGateway gateway = service.getGateway();
-                // COD is available for all countries
-                if (gateway == PaymentGateway.COD) {
-                    return true;
+        List<PaymentGateway> gateways = new ArrayList<>();
+        
+        // Online payment gateways
+        if (isIndia && config.getRazorpayEnabled() != null && config.getRazorpayEnabled()) {
+            // Check if Razorpay service is enabled (has keys)
+            PaymentService razorpayService = paymentServices.stream()
+                .filter(s -> s.getGateway() == PaymentGateway.RAZORPAY)
+                .findFirst()
+                .orElse(null);
+            if (razorpayService != null && razorpayService.isEnabled()) {
+                gateways.add(PaymentGateway.RAZORPAY);
+            }
+        }
+        
+        if (config.getStripeEnabled() != null && config.getStripeEnabled()) {
+            // Check if Stripe service is enabled (has keys)
+            PaymentService stripeService = paymentServices.stream()
+                .filter(s -> s.getGateway() == PaymentGateway.STRIPE)
+                .findFirst()
+                .orElse(null);
+            if (stripeService != null && stripeService.isEnabled()) {
+                gateways.add(PaymentGateway.STRIPE);
+            }
+        }
+        
+        // COD and Partial COD based on country and config
+        if (isIndia) {
+            // India: COD and Partial COD available if enabled
+            if (config.getCodEnabled() != null && config.getCodEnabled()) {
+                gateways.add(PaymentGateway.COD);
+            }
+            if (config.getPartialCodEnabled() != null && config.getPartialCodEnabled()) {
+                // Partial COD requires at least one gateway (Razorpay or Stripe)
+                boolean hasGateway = gateways.contains(PaymentGateway.RAZORPAY) || gateways.contains(PaymentGateway.STRIPE);
+                if (hasGateway) {
+                    gateways.add(PaymentGateway.PARTIAL_COD);
                 }
-                // Razorpay only for India
-                if (gateway == PaymentGateway.RAZORPAY) {
-                    return isIndia;
+            }
+        } else {
+            // Outside India: Only Partial COD if enabled (COD not available)
+            if (config.getPartialCodEnabled() != null && config.getPartialCodEnabled()) {
+                // Partial COD requires at least one gateway (Stripe for outside India)
+                boolean hasStripe = gateways.contains(PaymentGateway.STRIPE);
+                if (hasStripe) {
+                    gateways.add(PaymentGateway.PARTIAL_COD);
                 }
-                // Stripe for all countries
-                if (gateway == PaymentGateway.STRIPE) {
-                    return true;
-                }
-                return false;
-            })
-            .map(PaymentService::getGateway)
-            .collect(Collectors.toList());
+            }
+        }
+        
+        return gateways;
     }
     
     /**

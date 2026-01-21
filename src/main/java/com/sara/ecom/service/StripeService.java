@@ -3,7 +3,7 @@ package com.sara.ecom.service;
 import com.sara.ecom.dto.PaymentRequest;
 import com.sara.ecom.dto.PaymentResponse;
 import com.sara.ecom.dto.PaymentVerificationRequest;
-import com.sara.ecom.entity.BusinessConfig;
+import com.sara.ecom.entity.PaymentConfig;
 import com.sara.ecom.enums.PaymentGateway;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
@@ -27,11 +27,11 @@ public class StripeService implements PaymentService {
     private static final Logger logger = LoggerFactory.getLogger(StripeService.class);
     
     @Autowired
-    private BusinessConfigService businessConfigService;
+    private PaymentConfigService paymentConfigService;
     
     private String getSecretKey() {
         try {
-            BusinessConfig config = businessConfigService.getConfigEntity();
+            PaymentConfig config = paymentConfigService.getConfigEntity();
             return config != null ? config.getStripeSecretKey() : null;
         } catch (Exception e) {
             logger.error("Error getting Stripe secret key", e);
@@ -41,7 +41,7 @@ public class StripeService implements PaymentService {
     
     public String getPublicKey() {
         try {
-            BusinessConfig config = businessConfigService.getConfigEntity();
+            PaymentConfig config = paymentConfigService.getConfigEntity();
             return config != null ? config.getStripePublicKey() : null;
         } catch (Exception e) {
             logger.error("Error getting Stripe public key", e);
@@ -51,7 +51,7 @@ public class StripeService implements PaymentService {
     
     private boolean isStripeEnabled() {
         try {
-            BusinessConfig config = businessConfigService.getConfigEntity();
+            PaymentConfig config = paymentConfigService.getConfigEntity();
             if (config == null) return false;
             Boolean enabled = config.getStripeEnabled();
             String secretKey = config.getStripeSecretKey();

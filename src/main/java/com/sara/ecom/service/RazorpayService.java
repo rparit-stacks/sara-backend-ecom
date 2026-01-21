@@ -6,7 +6,7 @@ import com.razorpay.RazorpayException;
 import com.sara.ecom.dto.PaymentRequest;
 import com.sara.ecom.dto.PaymentResponse;
 import com.sara.ecom.dto.PaymentVerificationRequest;
-import com.sara.ecom.entity.BusinessConfig;
+import com.sara.ecom.entity.PaymentConfig;
 import com.sara.ecom.enums.PaymentGateway;
 import lombok.RequiredArgsConstructor;
 import org.json.JSONObject;
@@ -30,7 +30,7 @@ public class RazorpayService implements PaymentService {
     private static final Logger logger = LoggerFactory.getLogger(RazorpayService.class);
     
     @Autowired
-    private BusinessConfigService businessConfigService;
+    private PaymentConfigService paymentConfigService;
     
     private RazorpayClient getRazorpayClient() throws RazorpayException {
         String keyId = getKeyId();
@@ -45,7 +45,7 @@ public class RazorpayService implements PaymentService {
     
     private String getKeyId() {
         try {
-            BusinessConfig config = businessConfigService.getConfigEntity();
+            PaymentConfig config = paymentConfigService.getConfigEntity();
             return config != null ? config.getRazorpayKeyId() : null;
         } catch (Exception e) {
             logger.error("Error getting Razorpay key ID", e);
@@ -55,7 +55,7 @@ public class RazorpayService implements PaymentService {
     
     private String getKeySecret() {
         try {
-            BusinessConfig config = businessConfigService.getConfigEntity();
+            PaymentConfig config = paymentConfigService.getConfigEntity();
             return config != null ? config.getRazorpayKeySecret() : null;
         } catch (Exception e) {
             logger.error("Error getting Razorpay key secret", e);
@@ -65,7 +65,7 @@ public class RazorpayService implements PaymentService {
     
     private boolean isRazorpayEnabled() {
         try {
-            BusinessConfig config = businessConfigService.getConfigEntity();
+            PaymentConfig config = paymentConfigService.getConfigEntity();
             if (config == null) return false;
             Boolean enabled = config.getRazorpayEnabled();
             String keyId = config.getRazorpayKeyId();

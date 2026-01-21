@@ -23,6 +23,7 @@ public class OrderDto {
     private String customStatus;
     private String paymentStatus;
     private String paymentMethod;
+    private String paymentId;
     private String notes;
     private String swipeInvoiceId;
     private String swipeInvoiceNumber;
@@ -35,6 +36,17 @@ public class OrderDto {
     // Payment currency and amount as charged/expected by gateway
     private String paymentCurrency;
     private BigDecimal paymentAmount;
+    
+    // Cancellation fields
+    private String cancellationReason;
+    private String cancelledBy;
+    private LocalDateTime cancelledAt;
+    
+    // Refund fields
+    private BigDecimal refundAmount;
+    private LocalDateTime refundDate;
+    private String refundTransactionId;
+    private String refundReason;
     
     public static class OrderItemDto {
         private Long id;
@@ -125,6 +137,8 @@ public class OrderDto {
     public void setPaymentStatus(String paymentStatus) { this.paymentStatus = paymentStatus; }
     public String getPaymentMethod() { return paymentMethod; }
     public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+    public String getPaymentId() { return paymentId; }
+    public void setPaymentId(String paymentId) { this.paymentId = paymentId; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public String getSwipeInvoiceId() { return swipeInvoiceId; }
@@ -147,4 +161,18 @@ public class OrderDto {
     public void setPaymentCurrency(String paymentCurrency) { this.paymentCurrency = paymentCurrency; }
     public BigDecimal getPaymentAmount() { return paymentAmount; }
     public void setPaymentAmount(BigDecimal paymentAmount) { this.paymentAmount = paymentAmount; }
+    public String getCancellationReason() { return cancellationReason; }
+    public void setCancellationReason(String cancellationReason) { this.cancellationReason = cancellationReason; }
+    public String getCancelledBy() { return cancelledBy; }
+    public void setCancelledBy(String cancelledBy) { this.cancelledBy = cancelledBy; }
+    public LocalDateTime getCancelledAt() { return cancelledAt; }
+    public void setCancelledAt(LocalDateTime cancelledAt) { this.cancelledAt = cancelledAt; }
+    public BigDecimal getRefundAmount() { return refundAmount; }
+    public void setRefundAmount(BigDecimal refundAmount) { this.refundAmount = refundAmount; }
+    public LocalDateTime getRefundDate() { return refundDate; }
+    public void setRefundDate(LocalDateTime refundDate) { this.refundDate = refundDate; }
+    public String getRefundTransactionId() { return refundTransactionId; }
+    public void setRefundTransactionId(String refundTransactionId) { this.refundTransactionId = refundTransactionId; }
+    public String getRefundReason() { return refundReason; }
+    public void setRefundReason(String refundReason) { this.refundReason = refundReason; }
 }

@@ -36,14 +36,6 @@ public class BusinessConfigService {
         dto.setSwipeEnabled(config.getSwipeEnabled());
         dto.setEinvoiceEnabled(config.getEinvoiceEnabled());
         
-        // Payment Gateway fields
-        dto.setRazorpayKeyId(config.getRazorpayKeyId());
-        dto.setRazorpayKeySecret(null); // Don't expose secret
-        dto.setRazorpayEnabled(config.getRazorpayEnabled());
-        dto.setStripePublicKey(config.getStripePublicKey());
-        dto.setStripeSecretKey(null); // Don't expose secret
-        dto.setStripeEnabled(config.getStripeEnabled());
-        
         // Currency API fields
         dto.setCurrencyApiKey(null); // Don't expose API key
         dto.setCurrencyApiProvider(config.getCurrencyApiProvider());
@@ -57,13 +49,6 @@ public class BusinessConfigService {
         dto.setDoubletickSenderNumber(config.getDoubletickSenderNumber());
         dto.setDoubletickTemplateName(config.getDoubletickTemplateName());
         dto.setDoubletickEnabled(config.getDoubletickEnabled());
-        
-        // Payment Mode fields
-        dto.setPaymentMode(config.getPaymentMode());
-        dto.setPartialCodAdvancePercentage(config.getPartialCodAdvancePercentage());
-        dto.setCodEnabled(config.getCodEnabled());
-        dto.setPartialCodEnabled(config.getPartialCodEnabled());
-        dto.setOnlinePaymentEnabled(config.getOnlinePaymentEnabled());
         
         return dto;
     }
@@ -86,14 +71,6 @@ public class BusinessConfigService {
         dto.setSwipeEnabled(config.getSwipeEnabled());
         dto.setEinvoiceEnabled(config.getEinvoiceEnabled());
         
-        // Payment Gateway fields
-        dto.setRazorpayKeyId(config.getRazorpayKeyId());
-        dto.setRazorpayKeySecret(config.getRazorpayKeySecret());
-        dto.setRazorpayEnabled(config.getRazorpayEnabled());
-        dto.setStripePublicKey(config.getStripePublicKey());
-        dto.setStripeSecretKey(config.getStripeSecretKey());
-        dto.setStripeEnabled(config.getStripeEnabled());
-        
         // Currency API fields
         dto.setCurrencyApiKey(config.getCurrencyApiKey());
         dto.setCurrencyApiProvider(config.getCurrencyApiProvider());
@@ -103,13 +80,6 @@ public class BusinessConfigService {
         dto.setDoubletickSenderNumber(config.getDoubletickSenderNumber());
         dto.setDoubletickTemplateName(config.getDoubletickTemplateName());
         dto.setDoubletickEnabled(config.getDoubletickEnabled());
-        
-        // Payment Mode fields
-        dto.setPaymentMode(config.getPaymentMode());
-        dto.setPartialCodAdvancePercentage(config.getPartialCodAdvancePercentage());
-        dto.setCodEnabled(config.getCodEnabled());
-        dto.setPartialCodEnabled(config.getPartialCodEnabled());
-        dto.setOnlinePaymentEnabled(config.getOnlinePaymentEnabled());
         
         return dto;
     }
@@ -137,23 +107,6 @@ public class BusinessConfigService {
         config.setSwipeEnabled(dto.getSwipeEnabled() != null ? dto.getSwipeEnabled() : false);
         config.setEinvoiceEnabled(dto.getEinvoiceEnabled() != null ? dto.getEinvoiceEnabled() : false);
         
-        // Payment Gateway fields
-        if (dto.getRazorpayKeyId() != null && !dto.getRazorpayKeyId().trim().isEmpty()) {
-            config.setRazorpayKeyId(dto.getRazorpayKeyId());
-        }
-        if (dto.getRazorpayKeySecret() != null && !dto.getRazorpayKeySecret().trim().isEmpty()) {
-            config.setRazorpayKeySecret(dto.getRazorpayKeySecret());
-        }
-        config.setRazorpayEnabled(dto.getRazorpayEnabled() != null ? dto.getRazorpayEnabled() : false);
-        
-        if (dto.getStripePublicKey() != null && !dto.getStripePublicKey().trim().isEmpty()) {
-            config.setStripePublicKey(dto.getStripePublicKey());
-        }
-        if (dto.getStripeSecretKey() != null && !dto.getStripeSecretKey().trim().isEmpty()) {
-            config.setStripeSecretKey(dto.getStripeSecretKey());
-        }
-        config.setStripeEnabled(dto.getStripeEnabled() != null ? dto.getStripeEnabled() : false);
-        
         // Currency API fields
         if (dto.getCurrencyApiKey() != null && !dto.getCurrencyApiKey().trim().isEmpty()) {
             config.setCurrencyApiKey(dto.getCurrencyApiKey());
@@ -179,32 +132,6 @@ public class BusinessConfigService {
             config.setDoubletickEnabled(dto.getDoubletickEnabled());
         }
         
-        // Payment Mode fields with validation
-        if (dto.getPaymentMode() != null) {
-            config.setPaymentMode(dto.getPaymentMode());
-            
-            // Validate: Only one payment mode can be enabled at a time
-            boolean codEnabled = "FULL_COD".equals(dto.getPaymentMode());
-            boolean partialCodEnabled = "PARTIAL_COD".equals(dto.getPaymentMode());
-            boolean onlinePaymentEnabled = "ONLINE_PAYMENT".equals(dto.getPaymentMode());
-            
-            config.setCodEnabled(codEnabled);
-            config.setPartialCodEnabled(partialCodEnabled);
-            config.setOnlinePaymentEnabled(onlinePaymentEnabled);
-            
-            // If partial COD, require advance percentage
-            if (partialCodEnabled) {
-                if (dto.getPartialCodAdvancePercentage() == null || 
-                    dto.getPartialCodAdvancePercentage() < 10 || 
-                    dto.getPartialCodAdvancePercentage() > 90) {
-                    throw new IllegalArgumentException("Partial COD advance percentage must be between 10 and 90");
-                }
-                config.setPartialCodAdvancePercentage(dto.getPartialCodAdvancePercentage());
-            } else {
-                config.setPartialCodAdvancePercentage(null);
-            }
-        }
-        
         BusinessConfig saved = businessConfigRepository.save(config);
         
         BusinessConfigDto response = new BusinessConfigDto();
@@ -221,14 +148,6 @@ public class BusinessConfigService {
         response.setSwipeEnabled(saved.getSwipeEnabled());
         response.setEinvoiceEnabled(saved.getEinvoiceEnabled());
         
-        // Payment Gateway fields
-        response.setRazorpayKeyId(saved.getRazorpayKeyId());
-        response.setRazorpayKeySecret(null); // Don't return secret
-        response.setRazorpayEnabled(saved.getRazorpayEnabled());
-        response.setStripePublicKey(saved.getStripePublicKey());
-        response.setStripeSecretKey(null); // Don't return secret
-        response.setStripeEnabled(saved.getStripeEnabled());
-        
         // Currency API fields
         response.setCurrencyApiKey(null); // Don't return API key
         response.setCurrencyApiProvider(saved.getCurrencyApiProvider());
@@ -238,13 +157,6 @@ public class BusinessConfigService {
         response.setDoubletickSenderNumber(saved.getDoubletickSenderNumber());
         response.setDoubletickTemplateName(saved.getDoubletickTemplateName());
         response.setDoubletickEnabled(saved.getDoubletickEnabled());
-        
-        // Payment Mode fields
-        response.setPaymentMode(saved.getPaymentMode());
-        response.setPartialCodAdvancePercentage(saved.getPartialCodAdvancePercentage());
-        response.setCodEnabled(saved.getCodEnabled());
-        response.setPartialCodEnabled(saved.getPartialCodEnabled());
-        response.setOnlinePaymentEnabled(saved.getOnlinePaymentEnabled());
         
         return response;
     }

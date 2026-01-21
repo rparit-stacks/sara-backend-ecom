@@ -108,6 +108,29 @@ public class Order {
     @Column(name = "payment_amount", precision = 10, scale = 2)
     private BigDecimal paymentAmount;
     
+    // Cancellation fields
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    private String cancellationReason;
+    
+    @Column(name = "cancelled_by", length = 255)
+    private String cancelledBy;
+    
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+    
+    // Refund fields
+    @Column(name = "refund_amount", precision = 10, scale = 2)
+    private BigDecimal refundAmount;
+    
+    @Column(name = "refund_date")
+    private LocalDateTime refundDate;
+    
+    @Column(name = "refund_transaction_id", length = 255)
+    private String refundTransactionId;
+    
+    @Column(name = "refund_reason", columnDefinition = "TEXT")
+    private String refundReason;
+    
     public enum OrderStatus {
         PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED
     }
@@ -388,6 +411,62 @@ public class Order {
 
     public void setPaymentAmount(BigDecimal paymentAmount) {
         this.paymentAmount = paymentAmount;
+    }
+    
+    public String getCancellationReason() {
+        return cancellationReason;
+    }
+    
+    public void setCancellationReason(String cancellationReason) {
+        this.cancellationReason = cancellationReason;
+    }
+    
+    public String getCancelledBy() {
+        return cancelledBy;
+    }
+    
+    public void setCancelledBy(String cancelledBy) {
+        this.cancelledBy = cancelledBy;
+    }
+    
+    public LocalDateTime getCancelledAt() {
+        return cancelledAt;
+    }
+    
+    public void setCancelledAt(LocalDateTime cancelledAt) {
+        this.cancelledAt = cancelledAt;
+    }
+    
+    public BigDecimal getRefundAmount() {
+        return refundAmount;
+    }
+    
+    public void setRefundAmount(BigDecimal refundAmount) {
+        this.refundAmount = refundAmount;
+    }
+    
+    public LocalDateTime getRefundDate() {
+        return refundDate;
+    }
+    
+    public void setRefundDate(LocalDateTime refundDate) {
+        this.refundDate = refundDate;
+    }
+    
+    public String getRefundTransactionId() {
+        return refundTransactionId;
+    }
+    
+    public void setRefundTransactionId(String refundTransactionId) {
+        this.refundTransactionId = refundTransactionId;
+    }
+    
+    public String getRefundReason() {
+        return refundReason;
+    }
+    
+    public void setRefundReason(String refundReason) {
+        this.refundReason = refundReason;
     }
     
     public void addItem(OrderItem item) {

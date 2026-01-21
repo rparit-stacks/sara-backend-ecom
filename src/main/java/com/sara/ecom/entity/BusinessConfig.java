@@ -44,41 +44,6 @@ public class BusinessConfig {
     @Column(name = "einvoice_enabled")
     private Boolean einvoiceEnabled = false;
     
-    // Payment Gateway Configuration
-    @Column(name = "razorpay_key_id", length = 255)
-    private String razorpayKeyId;
-    
-    @Column(name = "razorpay_key_secret", columnDefinition = "TEXT")
-    private String razorpayKeySecret;
-    
-    @Column(name = "razorpay_enabled")
-    private Boolean razorpayEnabled = false;
-    
-    @Column(name = "stripe_public_key", length = 255)
-    private String stripePublicKey;
-    
-    @Column(name = "stripe_secret_key", columnDefinition = "TEXT")
-    private String stripeSecretKey;
-    
-    @Column(name = "stripe_enabled")
-    private Boolean stripeEnabled = false;
-    
-    // Payment Mode Configuration
-    @Column(name = "payment_mode", length = 50)
-    private String paymentMode; // "FULL_COD", "PARTIAL_COD", "ONLINE_PAYMENT"
-    
-    @Column(name = "partial_cod_advance_percentage")
-    private Integer partialCodAdvancePercentage; // 10-90
-    
-    @Column(name = "cod_enabled")
-    private Boolean codEnabled = false;
-    
-    @Column(name = "partial_cod_enabled")
-    private Boolean partialCodEnabled = false;
-    
-    @Column(name = "online_payment_enabled")
-    private Boolean onlinePaymentEnabled = true;
-    
     // Currency API Configuration
     @Column(name = "currency_api_key", length = 255)
     private String currencyApiKey;
@@ -229,55 +194,6 @@ public class BusinessConfig {
         this.updatedAt = updatedAt;
     }
     
-    // Payment Gateway Getters and Setters
-    public String getRazorpayKeyId() {
-        return razorpayKeyId;
-    }
-    
-    public void setRazorpayKeyId(String razorpayKeyId) {
-        this.razorpayKeyId = razorpayKeyId;
-    }
-    
-    public String getRazorpayKeySecret() {
-        return razorpayKeySecret;
-    }
-    
-    public void setRazorpayKeySecret(String razorpayKeySecret) {
-        this.razorpayKeySecret = razorpayKeySecret;
-    }
-    
-    public Boolean getRazorpayEnabled() {
-        return razorpayEnabled;
-    }
-    
-    public void setRazorpayEnabled(Boolean razorpayEnabled) {
-        this.razorpayEnabled = razorpayEnabled;
-    }
-    
-    public String getStripePublicKey() {
-        return stripePublicKey;
-    }
-    
-    public void setStripePublicKey(String stripePublicKey) {
-        this.stripePublicKey = stripePublicKey;
-    }
-    
-    public String getStripeSecretKey() {
-        return stripeSecretKey;
-    }
-    
-    public void setStripeSecretKey(String stripeSecretKey) {
-        this.stripeSecretKey = stripeSecretKey;
-    }
-    
-    public Boolean getStripeEnabled() {
-        return stripeEnabled;
-    }
-    
-    public void setStripeEnabled(Boolean stripeEnabled) {
-        this.stripeEnabled = stripeEnabled;
-    }
-    
     // Currency API Getters and Setters
     public String getCurrencyApiKey() {
         return currencyApiKey;
@@ -328,44 +244,4 @@ public class BusinessConfig {
         this.doubletickTemplateName = doubletickTemplateName;
     }
     
-    // Payment Mode Getters and Setters
-    public String getPaymentMode() {
-        return paymentMode;
-    }
-    
-    public void setPaymentMode(String paymentMode) {
-        this.paymentMode = paymentMode;
-    }
-    
-    public Integer getPartialCodAdvancePercentage() {
-        return partialCodAdvancePercentage;
-    }
-    
-    public void setPartialCodAdvancePercentage(Integer partialCodAdvancePercentage) {
-        this.partialCodAdvancePercentage = partialCodAdvancePercentage;
-    }
-    
-    public Boolean getCodEnabled() {
-        return codEnabled;
-    }
-    
-    public void setCodEnabled(Boolean codEnabled) {
-        this.codEnabled = codEnabled;
-    }
-    
-    public Boolean getPartialCodEnabled() {
-        return partialCodEnabled;
-    }
-    
-    public void setPartialCodEnabled(Boolean partialCodEnabled) {
-        this.partialCodEnabled = partialCodEnabled;
-    }
-    
-    public Boolean getOnlinePaymentEnabled() {
-        return onlinePaymentEnabled;
-    }
-    
-    public void setOnlinePaymentEnabled(Boolean onlinePaymentEnabled) {
-        this.onlinePaymentEnabled = onlinePaymentEnabled;
-    }
 }

@@ -136,6 +136,29 @@ public class CloudinaryService {
         }
     }
     
+    @SuppressWarnings("unchecked")
+    public String uploadFile(byte[] fileBytes, String fileName, String folder) throws IOException {
+        Map<String, Object> params = ObjectUtils.asMap(
+            "folder", folder != null ? folder : "products/files",
+            "resource_type", "auto", // Auto-detect file type
+            "overwrite", true
+        );
+        
+        Map<String, Object> uploadResult = (Map<String, Object>) cloudinary.uploader().upload(fileBytes, params);
+        return (String) uploadResult.get("secure_url");
+    }
+    
+    @SuppressWarnings("unchecked")
+    public String uploadFile(MultipartFile file, String folder) throws IOException {
+        Map<String, Object> params = ObjectUtils.asMap(
+            "folder", folder != null ? folder : "general_files",
+            "resource_type", "auto", // Automatically detect resource type
+            "overwrite", true
+        );
+        Map<String, Object> uploadResult = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(), params);
+        return (String) uploadResult.get("secure_url");
+    }
+    
     private String extractPublicId(String url) {
         try {
             // Extract public_id from Cloudinary URL

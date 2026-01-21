@@ -26,6 +26,19 @@ public class BusinessConfigDto {
     private String currencyApiKey; // Include in POST/PUT, exclude in GET
     private String currencyApiProvider;
     
+    // DoubleTick WhatsApp Configuration
+    private String doubletickApiKey; // Include in POST/PUT, exclude in GET
+    private String doubletickSenderNumber;
+    private String doubletickTemplateName;
+    private Boolean doubletickEnabled;
+    
+    // Payment Mode Configuration
+    private String paymentMode; // "FULL_COD", "PARTIAL_COD", "ONLINE_PAYMENT"
+    private Integer partialCodAdvancePercentage; // 10-90
+    private Boolean codEnabled;
+    private Boolean partialCodEnabled;
+    private Boolean onlinePaymentEnabled;
+    
     // Getters and Setters
     public Long getId() {
         return id;
@@ -187,5 +200,79 @@ public class BusinessConfigDto {
     
     public void setCurrencyApiProvider(String currencyApiProvider) {
         this.currencyApiProvider = currencyApiProvider;
+    }
+    
+    // DoubleTick WhatsApp Getters and Setters
+    public String getDoubletickApiKey() {
+        return doubletickApiKey;
+    }
+    
+    public void setDoubletickApiKey(String doubletickApiKey) {
+        this.doubletickApiKey = doubletickApiKey;
+    }
+    
+    public String getDoubletickSenderNumber() {
+        return doubletickSenderNumber;
+    }
+    
+    public void setDoubletickSenderNumber(String doubletickSenderNumber) {
+        this.doubletickSenderNumber = doubletickSenderNumber;
+    }
+    
+    public Boolean getDoubletickEnabled() {
+        return doubletickEnabled;
+    }
+    
+    public void setDoubletickEnabled(Boolean doubletickEnabled) {
+        this.doubletickEnabled = doubletickEnabled;
+    }
+    
+    public String getDoubletickTemplateName() {
+        return doubletickTemplateName;
+    }
+    
+    public void setDoubletickTemplateName(String doubletickTemplateName) {
+        this.doubletickTemplateName = doubletickTemplateName;
+    }
+    
+    // Payment Mode Getters and Setters
+    public String getPaymentMode() {
+        return paymentMode;
+    }
+    
+    public void setPaymentMode(String paymentMode) {
+        this.paymentMode = paymentMode;
+    }
+    
+    public Integer getPartialCodAdvancePercentage() {
+        return partialCodAdvancePercentage;
+    }
+    
+    public void setPartialCodAdvancePercentage(Integer partialCodAdvancePercentage) {
+        this.partialCodAdvancePercentage = partialCodAdvancePercentage;
+    }
+    
+    public Boolean getCodEnabled() {
+        return codEnabled;
+    }
+    
+    public void setCodEnabled(Boolean codEnabled) {
+        this.codEnabled = codEnabled;
+    }
+    
+    public Boolean getPartialCodEnabled() {
+        return partialCodEnabled;
+    }
+    
+    public void setPartialCodEnabled(Boolean partialCodEnabled) {
+        this.partialCodEnabled = partialCodEnabled;
+    }
+    
+    public Boolean getOnlinePaymentEnabled() {
+        return onlinePaymentEnabled;
+    }
+    
+    public void setOnlinePaymentEnabled(Boolean onlinePaymentEnabled) {
+        this.onlinePaymentEnabled = onlinePaymentEnabled;
     }
 }

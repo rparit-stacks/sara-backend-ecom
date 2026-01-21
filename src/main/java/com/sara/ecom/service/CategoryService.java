@@ -24,18 +24,58 @@ public class CategoryService {
     
     @Transactional
     public List<CategoryDto> getAllCategories() {
+        return getAllCategories(null);
+    }
+    
+    @Transactional
+    public List<CategoryDto> getAllCategories(String userEmail) {
         List<Category> categories = categoryRepository.findByParentIdIsNull();
+        
+        // Filter by user email if provided
+        if (userEmail != null && !userEmail.trim().isEmpty()) {
+            categories = categories.stream()
+                    .filter(category -> isCategoryAccessible(category, userEmail))
+                    .collect(Collectors.toList());
+        } else {
+            // If no user email (not logged in), only show public categories
+            categories = categories.stream()
+                    .filter(category -> category.getAllowedEmails() == null || category.getAllowedEmails().trim().isEmpty())
+                    .collect(Collectors.toList());
+        }
+        
         return categories.stream()
                 .map(this::buildCategoryTree)
+                .map(category -> filterCategoryTreeByEmail(category, userEmail))
+                .filter(category -> category != null)
                 .map(CategoryDto::fromEntity)
                 .collect(Collectors.toList());
     }
     
     @Transactional
     public List<CategoryDto> getActiveCategories() {
+        return getActiveCategories(null);
+    }
+    
+    @Transactional
+    public List<CategoryDto> getActiveCategories(String userEmail) {
         List<Category> categories = categoryRepository.findByParentIdIsNullAndStatus(Category.Status.ACTIVE);
+        
+        // Filter by user email if provided
+        if (userEmail != null && !userEmail.trim().isEmpty()) {
+            categories = categories.stream()
+                    .filter(category -> isCategoryAccessible(category, userEmail))
+                    .collect(Collectors.toList());
+        } else {
+            // If no user email (not logged in), only show public categories
+            categories = categories.stream()
+                    .filter(category -> category.getAllowedEmails() == null || category.getAllowedEmails().trim().isEmpty())
+                    .collect(Collectors.toList());
+        }
+        
         return categories.stream()
                 .map(this::buildCategoryTree)
+                .map(category -> filterCategoryTreeByEmail(category, userEmail))
+                .filter(category -> category != null)
                 .map(CategoryDto::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -65,8 +105,9 @@ public class CategoryService {
     
     /**
      * Checks if a category is accessible to a user based on email restrictions.
+     * Also checks parent categories recursively.
      */
-    private boolean isCategoryAccessible(Category category, String userEmail) {
+    public boolean isCategoryAccessible(Category category, String userEmail) {
         // If no email restriction, category is accessible
         if (category.getAllowedEmails() == null || category.getAllowedEmails().trim().isEmpty()) {
             return true;

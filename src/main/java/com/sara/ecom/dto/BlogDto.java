@@ -14,6 +14,8 @@ public class BlogDto {
     private Long views;
     private LocalDateTime publishedAt;
     private String readTime;
+    private Boolean isHomepageFeatured;
+    private Integer homepagePosition;
     
     // Getters and Setters
     public Long getId() {
@@ -102,5 +104,21 @@ public class BlogDto {
     
     public void setReadTime(String readTime) {
         this.readTime = readTime;
+    }
+    
+    public Boolean getIsHomepageFeatured() {
+        return isHomepageFeatured;
+    }
+    
+    public void setIsHomepageFeatured(Boolean isHomepageFeatured) {
+        this.isHomepageFeatured = isHomepageFeatured;
+    }
+    
+    public Integer getHomepagePosition() {
+        return homepagePosition;
+    }
+    
+    public void setHomepagePosition(Integer homepagePosition) {
+        this.homepagePosition = homepagePosition;
     }
 }

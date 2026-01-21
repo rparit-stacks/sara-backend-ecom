@@ -39,7 +39,32 @@
                                 <p style="margin: 0; font-weight: bold; color: #333333;">[[${item.productName}]]</p>
                                 <p style="margin: 5px 0; color: #666666;">Quantity: [[${item.quantity}]]</p>
                                 <p style="margin: 5px 0; color: #2b9d8f; font-weight: bold;">₹[[${#numbers.formatDecimal(item.totalPrice, 1, 2)}]]</p>
+                                <!-- Digital Product ZIP Password (shown after payment) -->
+                                <div th:if="${item.productType == 'DIGITAL' and item.zipPassword != null}" style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border-radius: 4px; border-left: 3px solid #ffc107;">
+                                    <p style="margin: 5px 0; color: #856404; font-weight: bold; font-size: 13px;">📦 ZIP Password:</p>
+                                    <p style="margin: 5px 0; color: #856404; font-family: monospace; font-size: 16px; letter-spacing: 1px;">[[${item.zipPassword}]]</p>
+                                    <p style="margin: 5px 0; color: #666666; font-size: 11px; font-style: italic;">First 4 letters of email (uppercase) + Last 4 digits of mobile</p>
+                                </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Digital Product Download Section (shown after payment) -->
+                <div th:if="${data.paymentStatus == 'PAID' and data.items != null}">
+                    <div th:each="item : ${data.items}" th:if="${item.productType == 'DIGITAL' and item.zipPassword != null}">
+                        <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                            <h3 style="margin-top: 0; color: #856404;">📦 Digital Product Download</h3>
+                            <p style="margin: 10px 0; color: #856404; font-weight: bold;">Product: [[${item.productName}]]</p>
+                            <p style="margin: 10px 0; color: #856404;">
+                                <strong>ZIP Password:</strong> <span style="font-family: monospace; font-size: 18px; letter-spacing: 2px; background-color: #fff; padding: 5px 10px; border-radius: 4px;">[[${item.zipPassword}]]</span>
+                            </p>
+                            <p style="margin: 10px 0; color: #666666; font-size: 13px;">
+                                <em>ZIP Password = First 4 letters of your email (uppercase) + Last 4 digits of your mobile number</em>
+                            </p>
+                            <p style="margin: 10px 0; color: #666666; font-size: 13px;">
+                                You can download your files from your order history or dashboard.
+                            </p>
                         </div>
                     </div>
                 </div>

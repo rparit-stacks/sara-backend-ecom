@@ -22,17 +22,16 @@ public class CategoryController {
     @GetMapping
     public ResponseEntity<List<CategoryDto>> getAllCategories(
             @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String userEmail,
             Authentication authentication) {
-        String userEmail = authentication != null ? authentication.getName() : null;
+        // Use provided userEmail or get from authentication
+        String email = userEmail != null ? userEmail : (authentication != null ? authentication.getName() : null);
         
         List<CategoryDto> categories;
         if (active != null && active) {
-            // If user is authenticated, filter by email; otherwise show all active
-            categories = userEmail != null 
-                    ? categoryService.getActiveCategoriesForUser(userEmail)
-                    : categoryService.getActiveCategories();
+            categories = categoryService.getActiveCategories(email);
         } else {
-            categories = categoryService.getAllCategories();
+            categories = categoryService.getAllCategories(email);
         }
         return ResponseEntity.ok(categories);
     }

@@ -47,6 +47,14 @@ public class OrderItem {
     @Column(name = "fabric_id")
     private Long fabricId;
     
+    // For DIGITAL products - stored ZIP download URL
+    @Column(name = "digital_download_url", columnDefinition = "TEXT")
+    private String digitalDownloadUrl;
+    
+    // For DIGITAL products - ZIP password
+    @Column(name = "zip_password", columnDefinition = "TEXT")
+    private String zipPassword;
+    
     // Getters and Setters
     public Long getId() {
         return id;
@@ -150,5 +158,21 @@ public class OrderItem {
     
     public void setFabricId(Long fabricId) {
         this.fabricId = fabricId;
+    }
+    
+    public String getDigitalDownloadUrl() {
+        return digitalDownloadUrl;
+    }
+    
+    public void setDigitalDownloadUrl(String digitalDownloadUrl) {
+        this.digitalDownloadUrl = digitalDownloadUrl;
+    }
+    
+    public String getZipPassword() {
+        return zipPassword;
+    }
+    
+    public void setZipPassword(String zipPassword) {
+        this.zipPassword = zipPassword;
     }
 }

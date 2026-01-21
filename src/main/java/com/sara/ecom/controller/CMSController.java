@@ -1,6 +1,8 @@
 package com.sara.ecom.controller;
 
+import com.sara.ecom.dto.BlogDto;
 import com.sara.ecom.dto.CMSDto;
+import com.sara.ecom.service.BlogService;
 import com.sara.ecom.service.CMSService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +17,9 @@ public class CMSController {
     
     @Autowired
     private CMSService cmsService;
+    
+    @Autowired
+    private BlogService blogService;
     
     // ===== Public Endpoints =====
     
@@ -56,6 +61,11 @@ public class CMSController {
     @GetMapping("/cms/contact")
     public ResponseEntity<Map<String, String>> getContactInfo() {
         return ResponseEntity.ok(cmsService.getContactInfo());
+    }
+    
+    @GetMapping("/cms/homepage-blogs")
+    public ResponseEntity<List<BlogDto>> getHomepageBlogs() {
+        return ResponseEntity.ok(blogService.getHomepageBlogs());
     }
     
     // ===== Testimonial Submission (via link) =====

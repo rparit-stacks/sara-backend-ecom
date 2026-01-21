@@ -56,6 +56,9 @@ public class Order {
     @Column(nullable = false)
     private OrderStatus status = OrderStatus.PENDING;
     
+    @Column(name = "custom_status", length = 100)
+    private String customStatus;
+    
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", nullable = false)
     private PaymentStatus paymentStatus = PaymentStatus.PENDING;
@@ -96,6 +99,14 @@ public class Order {
     
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    
+    // Currency in which payment was made (e.g. INR, USD)
+    @Column(name = "payment_currency", length = 10)
+    private String paymentCurrency;
+
+    // Amount charged by the payment gateway in the original currency
+    @Column(name = "payment_amount", precision = 10, scale = 2)
+    private BigDecimal paymentAmount;
     
     public enum OrderStatus {
         PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED
@@ -251,6 +262,14 @@ public class Order {
         this.status = status;
     }
     
+    public String getCustomStatus() {
+        return customStatus;
+    }
+    
+    public void setCustomStatus(String customStatus) {
+        this.customStatus = customStatus;
+    }
+    
     public PaymentStatus getPaymentStatus() {
         return paymentStatus;
     }
@@ -353,6 +372,22 @@ public class Order {
     
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getPaymentCurrency() {
+        return paymentCurrency;
+    }
+
+    public void setPaymentCurrency(String paymentCurrency) {
+        this.paymentCurrency = paymentCurrency;
+    }
+
+    public BigDecimal getPaymentAmount() {
+        return paymentAmount;
+    }
+
+    public void setPaymentAmount(BigDecimal paymentAmount) {
+        this.paymentAmount = paymentAmount;
     }
     
     public void addItem(OrderItem item) {

@@ -114,6 +114,8 @@ public class BlogService {
         dto.setViews(blog.getViews());
         dto.setPublishedAt(blog.getPublishedAt());
         dto.setReadTime(calculateReadTime(blog.getContent()));
+        dto.setIsHomepageFeatured(blog.getIsHomepageFeatured());
+        dto.setHomepagePosition(blog.getHomepagePosition());
         return dto;
     }
     
@@ -124,5 +126,35 @@ public class BlogService {
         int wordCount = content.split("\\s+").length;
         int minutes = Math.max(1, wordCount / 200);
         return minutes + " min read";
+    }
+    
+    @Transactional
+    public void setHomepageBlogs(List<Long> blogIds) {
+        if (blogIds == null || blogIds.size() != 4) {
+            throw new IllegalArgumentException("Exactly 4 blog IDs are required for homepage");
+        }
+        
+        // Clear existing homepage featured flags
+        List<Blog> allBlogs = blogRepository.findAll();
+        for (Blog blog : allBlogs) {
+            blog.setIsHomepageFeatured(false);
+            blog.setHomepagePosition(null);
+        }
+        
+        // Set new homepage blogs
+        for (int i = 0; i < blogIds.size(); i++) {
+            final Long blogId = blogIds.get(i);
+            final int position = i + 1;
+            Blog blog = blogRepository.findById(blogId)
+                    .orElseThrow(() -> new RuntimeException("Blog not found with id: " + blogId));
+            blog.setIsHomepageFeatured(true);
+            blog.setHomepagePosition(position); // 1-4
+            blogRepository.save(blog);
+        }
+    }
+    
+    public List<BlogDto> getHomepageBlogs() {
+        List<Blog> blogs = blogRepository.findHomepageFeaturedBlogs();
+        return blogs.stream().map(this::toDto).collect(Collectors.toList());
     }
 }

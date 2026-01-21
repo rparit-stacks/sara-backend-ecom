@@ -68,4 +68,10 @@ public class BlogController {
         blogService.deleteBlog(id);
         return ResponseEntity.noContent().build();
     }
+    
+    @PutMapping("/admin/blogs/homepage")
+    public ResponseEntity<Void> setHomepageBlogs(@RequestBody List<Long> blogIds) {
+        blogService.setHomepageBlogs(blogIds);
+        return ResponseEntity.ok().build();
+    }
 }

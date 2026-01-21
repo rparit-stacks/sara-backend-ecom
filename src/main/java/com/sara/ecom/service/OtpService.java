@@ -29,18 +29,29 @@ public class OtpService {
     public String generateOtp(String email) {
         // Normalize email to lowercase to prevent duplicate accounts
         String normalizedEmail = email != null ? email.toLowerCase().trim() : email;
-        // Delete existing OTP for this email
-        otpVerificationRepository.deleteByEmail(normalizedEmail);
         
         // Generate new OTP
         String otp = generateRandomOtp();
         
-        OtpVerification otpVerification = OtpVerification.builder()
-                .email(normalizedEmail)
-                .otp(otp)
-                .expiresAt(LocalDateTime.now().plusSeconds(otpExpirationMillis / 1000))
-                .verified(false)
-                .build();
+        // Find existing OTP record for this email
+        Optional<OtpVerification> existingOtpOpt = otpVerificationRepository.findByEmail(normalizedEmail);
+        
+        OtpVerification otpVerification;
+        if (existingOtpOpt.isPresent()) {
+            // Update existing record
+            otpVerification = existingOtpOpt.get();
+            otpVerification.setOtp(otp);
+            otpVerification.setExpiresAt(LocalDateTime.now().plusSeconds(otpExpirationMillis / 1000));
+            otpVerification.setVerified(false);
+        } else {
+            // Create new record
+            otpVerification = OtpVerification.builder()
+                    .email(normalizedEmail)
+                    .otp(otp)
+                    .expiresAt(LocalDateTime.now().plusSeconds(otpExpirationMillis / 1000))
+                    .verified(false)
+                    .build();
+        }
         
         otpVerificationRepository.save(otpVerification);
         

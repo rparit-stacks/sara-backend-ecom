@@ -48,6 +48,23 @@ public class BusinessConfigService {
         dto.setCurrencyApiKey(null); // Don't expose API key
         dto.setCurrencyApiProvider(config.getCurrencyApiProvider());
         
+        // DoubleTick WhatsApp fields
+        if (config.getDoubletickApiKey() != null && !config.getDoubletickApiKey().trim().isEmpty()) {
+            dto.setDoubletickApiKey("***API_KEY_SET***"); // Placeholder to indicate key exists
+        } else {
+            dto.setDoubletickApiKey(null);
+        }
+        dto.setDoubletickSenderNumber(config.getDoubletickSenderNumber());
+        dto.setDoubletickTemplateName(config.getDoubletickTemplateName());
+        dto.setDoubletickEnabled(config.getDoubletickEnabled());
+        
+        // Payment Mode fields
+        dto.setPaymentMode(config.getPaymentMode());
+        dto.setPartialCodAdvancePercentage(config.getPartialCodAdvancePercentage());
+        dto.setCodEnabled(config.getCodEnabled());
+        dto.setPartialCodEnabled(config.getPartialCodEnabled());
+        dto.setOnlinePaymentEnabled(config.getOnlinePaymentEnabled());
+        
         return dto;
     }
     
@@ -80,6 +97,19 @@ public class BusinessConfigService {
         // Currency API fields
         dto.setCurrencyApiKey(config.getCurrencyApiKey());
         dto.setCurrencyApiProvider(config.getCurrencyApiProvider());
+        
+        // DoubleTick WhatsApp fields
+        dto.setDoubletickApiKey(config.getDoubletickApiKey());
+        dto.setDoubletickSenderNumber(config.getDoubletickSenderNumber());
+        dto.setDoubletickTemplateName(config.getDoubletickTemplateName());
+        dto.setDoubletickEnabled(config.getDoubletickEnabled());
+        
+        // Payment Mode fields
+        dto.setPaymentMode(config.getPaymentMode());
+        dto.setPartialCodAdvancePercentage(config.getPartialCodAdvancePercentage());
+        dto.setCodEnabled(config.getCodEnabled());
+        dto.setPartialCodEnabled(config.getPartialCodEnabled());
+        dto.setOnlinePaymentEnabled(config.getOnlinePaymentEnabled());
         
         return dto;
     }
@@ -132,6 +162,49 @@ public class BusinessConfigService {
             config.setCurrencyApiProvider(dto.getCurrencyApiProvider());
         }
         
+        // DoubleTick WhatsApp fields
+        // Only update API key if provided (not empty/null and not the placeholder/masked)
+        if (dto.getDoubletickApiKey() != null && !dto.getDoubletickApiKey().trim().isEmpty() 
+            && !dto.getDoubletickApiKey().equals("***API_KEY_SET***")
+            && !dto.getDoubletickApiKey().startsWith("***")) {
+            // It's a new full API key, update it
+            config.setDoubletickApiKey(dto.getDoubletickApiKey().trim());
+        }
+        // If null, empty, masked, or placeholder - don't update, preserve existing key from DB
+        
+        if (dto.getDoubletickSenderNumber() != null && !dto.getDoubletickSenderNumber().trim().isEmpty()) {
+            config.setDoubletickSenderNumber(dto.getDoubletickSenderNumber().trim());
+        }
+        if (dto.getDoubletickEnabled() != null) {
+            config.setDoubletickEnabled(dto.getDoubletickEnabled());
+        }
+        
+        // Payment Mode fields with validation
+        if (dto.getPaymentMode() != null) {
+            config.setPaymentMode(dto.getPaymentMode());
+            
+            // Validate: Only one payment mode can be enabled at a time
+            boolean codEnabled = "FULL_COD".equals(dto.getPaymentMode());
+            boolean partialCodEnabled = "PARTIAL_COD".equals(dto.getPaymentMode());
+            boolean onlinePaymentEnabled = "ONLINE_PAYMENT".equals(dto.getPaymentMode());
+            
+            config.setCodEnabled(codEnabled);
+            config.setPartialCodEnabled(partialCodEnabled);
+            config.setOnlinePaymentEnabled(onlinePaymentEnabled);
+            
+            // If partial COD, require advance percentage
+            if (partialCodEnabled) {
+                if (dto.getPartialCodAdvancePercentage() == null || 
+                    dto.getPartialCodAdvancePercentage() < 10 || 
+                    dto.getPartialCodAdvancePercentage() > 90) {
+                    throw new IllegalArgumentException("Partial COD advance percentage must be between 10 and 90");
+                }
+                config.setPartialCodAdvancePercentage(dto.getPartialCodAdvancePercentage());
+            } else {
+                config.setPartialCodAdvancePercentage(null);
+            }
+        }
+        
         BusinessConfig saved = businessConfigRepository.save(config);
         
         BusinessConfigDto response = new BusinessConfigDto();
@@ -159,6 +232,19 @@ public class BusinessConfigService {
         // Currency API fields
         response.setCurrencyApiKey(null); // Don't return API key
         response.setCurrencyApiProvider(saved.getCurrencyApiProvider());
+        
+        // DoubleTick WhatsApp fields
+        response.setDoubletickApiKey(null); // Don't return API key
+        response.setDoubletickSenderNumber(saved.getDoubletickSenderNumber());
+        response.setDoubletickTemplateName(saved.getDoubletickTemplateName());
+        response.setDoubletickEnabled(saved.getDoubletickEnabled());
+        
+        // Payment Mode fields
+        response.setPaymentMode(saved.getPaymentMode());
+        response.setPartialCodAdvancePercentage(saved.getPartialCodAdvancePercentage());
+        response.setCodEnabled(saved.getCodEnabled());
+        response.setPartialCodEnabled(saved.getPartialCodEnabled());
+        response.setOnlinePaymentEnabled(saved.getOnlinePaymentEnabled());
         
         return response;
     }

@@ -83,11 +83,26 @@ public class OrderController {
     @PutMapping("/admin/orders/{id}/status")
     public ResponseEntity<OrderDto> updateOrderStatus(
             @PathVariable Long id,
-            @RequestBody Map<String, String> request) {
-        String status = request.get("status");
-        Boolean skipWhatsApp = request.get("skipWhatsApp") != null ? 
-            Boolean.parseBoolean(request.get("skipWhatsApp")) : false;
-        return ResponseEntity.ok(orderService.updateOrderStatus(id, status, skipWhatsApp));
+            @RequestBody Map<String, Object> request) {
+        String status = (String) request.get("status");
+        String customStatus = (String) request.get("customStatus");
+        String customMessage = (String) request.get("customMessage");
+        Boolean skipWhatsApp = false;
+        if (request.get("skipWhatsApp") != null) {
+            if (request.get("skipWhatsApp") instanceof Boolean) {
+                skipWhatsApp = (Boolean) request.get("skipWhatsApp");
+            } else if (request.get("skipWhatsApp") instanceof String) {
+                skipWhatsApp = Boolean.parseBoolean((String) request.get("skipWhatsApp"));
+            }
+        }
+        
+        // If customStatus is provided, use updateCustomStatus
+        if (customStatus != null && !customStatus.trim().isEmpty()) {
+            return ResponseEntity.ok(orderService.updateCustomStatus(id, customStatus, customMessage, skipWhatsApp));
+        } else {
+            // Use standard status update
+            return ResponseEntity.ok(orderService.updateOrderStatus(id, status, customStatus, customMessage, skipWhatsApp));
+        }
     }
     
     @PutMapping("/admin/orders/{id}/payment")

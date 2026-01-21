@@ -32,6 +32,12 @@ public class Blog {
     
     private Long views = 0L;
     
+    @Column(name = "is_homepage_featured")
+    private Boolean isHomepageFeatured = false;
+    
+    @Column(name = "homepage_position")
+    private Integer homepagePosition; // 1-4 for homepage display order
+    
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
     
@@ -158,5 +164,21 @@ public class Blog {
     
     public void incrementViews() {
         this.views++;
+    }
+    
+    public Boolean getIsHomepageFeatured() {
+        return isHomepageFeatured;
+    }
+    
+    public void setIsHomepageFeatured(Boolean isHomepageFeatured) {
+        this.isHomepageFeatured = isHomepageFeatured;
+    }
+    
+    public Integer getHomepagePosition() {
+        return homepagePosition;
+    }
+    
+    public void setHomepagePosition(Integer homepagePosition) {
+        this.homepagePosition = homepagePosition;
     }
 }

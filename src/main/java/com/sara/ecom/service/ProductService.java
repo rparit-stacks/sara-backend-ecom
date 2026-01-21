@@ -55,6 +55,9 @@ public class ProductService {
     @Autowired
     private CustomConfigService customConfigService;
     
+    @Autowired
+    private CloudinaryService cloudinaryService;
+    
     /**
      * Get all products matching the given filters.
      * Note: This method only returns Product entities, never CustomProduct entities.
@@ -62,6 +65,13 @@ public class ProductService {
      * This ensures CustomProducts never appear in public product listings.
      */
     public List<ProductDto> getAllProducts(String status, String type, Long categoryId) {
+        return getAllProducts(status, type, categoryId, null);
+    }
+    
+    /**
+     * Get all products matching the given filters, filtered by user email for category accessibility.
+     */
+    public List<ProductDto> getAllProducts(String status, String type, Long categoryId, String userEmail) {
         List<Product> products;
         
         Product.Status statusEnum = status != null ? Product.Status.valueOf(status.toUpperCase()) : null;
@@ -87,6 +97,11 @@ public class ProductService {
         
         List<ProductDto> result = products.stream().map(this::toDto).collect(Collectors.toList());
         
+        // Filter products by category accessibility (always filter, even if no userEmail - show only public)
+        result = result.stream()
+                .filter(p -> isProductAccessible(p.getId(), userEmail))
+                .collect(Collectors.toList());
+        
         // If type is PLAIN and no categoryId specified, filter by fabric categories only
         // This ensures only fabric products appear in fabric selection
         if (typeEnum == Product.ProductType.PLAIN && categoryId == null) {
@@ -110,11 +125,40 @@ public class ProductService {
         return result;
     }
     
+    /**
+     * Checks if a product is accessible to a user based on its category's email restrictions.
+     */
+    public boolean isProductAccessible(Long productId, String userEmail) {
+        Product product = productRepository.findById(productId).orElse(null);
+        if (product == null) {
+            return false;
+        }
+        
+        if (product.getCategoryId() == null) {
+            // Product without category is accessible
+            return true;
+        }
+        
+        // Check category accessibility
+        Category category = categoryRepository.findById(product.getCategoryId()).orElse(null);
+        return categoryService.isCategoryAccessible(category, userEmail);
+    }
+    
     @Transactional(readOnly = true)
     public ProductDto getProductById(Long id) {
+        return getProductById(id, null);
+    }
+    
+    @Transactional(readOnly = true)
+    public ProductDto getProductById(Long id, String userEmail) {
         // Use separate queries to avoid MultipleBagFetchException
         Product product = productRepository.findByIdWithImages(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+        
+        // Check if product is accessible
+        if (!isProductAccessible(id, userEmail)) {
+            throw new RuntimeException("Product is not accessible");
+        }
         
         // Load detail sections separately
         productRepository.findByIdWithDetailSections(id).ifPresent(p -> 
@@ -1252,9 +1296,298 @@ public class ProductService {
     }
     
     /**
+     * Generates password-protected ZIP from digital product files and uploads to Cloudinary.
+     * Returns the Cloudinary URL of the uploaded ZIP.
+     */
+    @Transactional
+    public String generatePasswordProtectedZip(Long productId, String password) throws IOException {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+        
+        if (product.getType() != Product.ProductType.DIGITAL) {
+            throw new RuntimeException("Product is not a Digital Product");
+        }
+        
+        List<String> fileUrls = new ArrayList<>();
+        
+        // Get all file URLs from fileUrl field
+        String fileUrl = product.getFileUrl();
+        if (fileUrl != null && !fileUrl.trim().isEmpty()) {
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                Object parsed = objectMapper.readValue(fileUrl, Object.class);
+                if (parsed instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<String> urls = (List<String>) parsed;
+                    for (String url : urls) {
+                        if (url != null && !url.trim().isEmpty() && !fileUrls.contains(url)) {
+                            fileUrls.add(url);
+                        }
+                    }
+                } else if (parsed instanceof String) {
+                    String url = (String) parsed;
+                    if (!fileUrls.contains(url)) {
+                        fileUrls.add(url);
+                    }
+                }
+            } catch (Exception e) {
+                if (fileUrl.contains(",")) {
+                    String[] urls = fileUrl.split(",");
+                    for (String url : urls) {
+                        String trimmed = url.trim();
+                        if (!trimmed.isEmpty() && !fileUrls.contains(trimmed)) {
+                            fileUrls.add(trimmed);
+                        }
+                    }
+                } else {
+                    if (!fileUrls.contains(fileUrl)) {
+                        fileUrls.add(fileUrl);
+                    }
+                }
+            }
+        }
+        
+        // If created from design product, add all images from source
+        if (product.getSourceDesignProductId() != null) {
+            Product sourceDesignProduct = productRepository.findByIdWithImages(product.getSourceDesignProductId())
+                    .orElse(null);
+            
+            if (sourceDesignProduct != null && sourceDesignProduct.getImages() != null) {
+                for (ProductImage img : sourceDesignProduct.getImages()) {
+                    String imgUrl = img.getImageUrl();
+                    if (imgUrl != null && !imgUrl.trim().isEmpty() && !fileUrls.contains(imgUrl)) {
+                        fileUrls.add(imgUrl);
+                    }
+                }
+            }
+        }
+        
+        if (fileUrls.isEmpty()) {
+            throw new RuntimeException("No valid file URLs found");
+        }
+        
+        // Create temporary directory for ZIP creation
+        java.io.File tempDir = new java.io.File(System.getProperty("java.io.tmpdir"));
+        java.io.File tempZipFile = java.io.File.createTempFile("digital_product_", ".zip", tempDir);
+        
+        try {
+            // Use Zip4j to create password-protected ZIP
+            net.lingala.zip4j.ZipFile zipFile = new net.lingala.zip4j.ZipFile(tempZipFile);
+            net.lingala.zip4j.model.ZipParameters zipParameters = new net.lingala.zip4j.model.ZipParameters();
+            zipParameters.setEncryptFiles(true);
+            zipParameters.setEncryptionMethod(net.lingala.zip4j.model.enums.EncryptionMethod.ZIP_STANDARD);
+            
+            // Download and add each file to ZIP
+            for (int i = 0; i < fileUrls.size(); i++) {
+                String url = fileUrls.get(i);
+                try {
+                    URL fileUrlObj = URI.create(url).toURL();
+                    HttpURLConnection connection = (HttpURLConnection) fileUrlObj.openConnection();
+                    connection.setRequestMethod("GET");
+                    connection.setConnectTimeout(10000);
+                    connection.setReadTimeout(30000);
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+                    
+                    if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                        continue;
+                    }
+                    
+                    String extension = "";
+                    if (url.contains(".")) {
+                        String[] parts = url.split("\\.");
+                        if (parts.length > 1) {
+                            extension = "." + parts[parts.length - 1].split("\\?")[0];
+                        }
+                    }
+                    if (extension.isEmpty()) {
+                        extension = ".png";
+                    }
+                    
+                    // Download file to temporary location
+                    java.io.File tempFile = java.io.File.createTempFile("download_", extension, tempDir);
+                    try (InputStream inputStream = connection.getInputStream();
+                         java.io.FileOutputStream outputStream = new java.io.FileOutputStream(tempFile)) {
+                        byte[] buffer = new byte[8192];
+                        int bytesRead;
+                        while ((bytesRead = inputStream.read(buffer)) != -1) {
+                            outputStream.write(buffer, 0, bytesRead);
+                        }
+                    }
+                    
+                    // Add file to ZIP with password protection
+                    zipFile.addFile(tempFile, zipParameters);
+                    
+                    // Clean up temp file
+                    tempFile.delete();
+                } catch (Exception e) {
+                    System.err.println("Failed to download file from URL: " + url + " - " + e.getMessage());
+                }
+            }
+            
+            // Set password for the ZIP
+            zipFile.setPassword(password.toCharArray());
+            
+            // Close ZIP file before reading bytes
+            zipFile.close();
+            
+            // Read ZIP file bytes
+            byte[] zipBytes = java.nio.file.Files.readAllBytes(tempZipFile.toPath());
+            
+            if (zipBytes.length == 0) {
+                throw new RuntimeException("Failed to create ZIP file");
+            }
+            
+            // Upload ZIP to Cloudinary
+            String zipFileName = product.getName().replaceAll("[^a-zA-Z0-9]", "_") + "_files.zip";
+            String cloudinaryUrl = cloudinaryService.uploadFile(zipBytes, zipFileName, "digital_product_zips");
+            
+            return cloudinaryUrl;
+        } finally {
+            // Clean up temp ZIP file
+            if (tempZipFile.exists()) {
+                tempZipFile.delete();
+            }
+        }
+    }
+    
+    /**
+     * Generates ZIP from digital product files and uploads to Cloudinary (without password).
+     * Returns the Cloudinary URL of the uploaded ZIP.
+     * @deprecated Use generatePasswordProtectedZip instead for digital products
+     */
+    @Transactional
+    public String generateAndUploadDigitalZip(Long productId) throws IOException {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+        
+        if (product.getType() != Product.ProductType.DIGITAL) {
+            throw new RuntimeException("Product is not a Digital Product");
+        }
+        
+        List<String> fileUrls = new ArrayList<>();
+        
+        // Get all file URLs from fileUrl field
+        String fileUrl = product.getFileUrl();
+        if (fileUrl != null && !fileUrl.trim().isEmpty()) {
+            try {
+                ObjectMapper objectMapper = new ObjectMapper();
+                Object parsed = objectMapper.readValue(fileUrl, Object.class);
+                if (parsed instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<String> urls = (List<String>) parsed;
+                    for (String url : urls) {
+                        if (url != null && !url.trim().isEmpty() && !fileUrls.contains(url)) {
+                            fileUrls.add(url);
+                        }
+                    }
+                } else if (parsed instanceof String) {
+                    String url = (String) parsed;
+                    if (!fileUrls.contains(url)) {
+                        fileUrls.add(url);
+                    }
+                }
+            } catch (Exception e) {
+                if (fileUrl.contains(",")) {
+                    String[] urls = fileUrl.split(",");
+                    for (String url : urls) {
+                        String trimmed = url.trim();
+                        if (!trimmed.isEmpty() && !fileUrls.contains(trimmed)) {
+                            fileUrls.add(trimmed);
+                        }
+                    }
+                } else {
+                    if (!fileUrls.contains(fileUrl)) {
+                        fileUrls.add(fileUrl);
+                    }
+                }
+            }
+        }
+        
+        // If created from design product, add all images from source
+        if (product.getSourceDesignProductId() != null) {
+            Product sourceDesignProduct = productRepository.findByIdWithImages(product.getSourceDesignProductId())
+                    .orElse(null);
+            
+            if (sourceDesignProduct != null && sourceDesignProduct.getImages() != null) {
+                for (ProductImage img : sourceDesignProduct.getImages()) {
+                    String imgUrl = img.getImageUrl();
+                    if (imgUrl != null && !imgUrl.trim().isEmpty() && !fileUrls.contains(imgUrl)) {
+                        fileUrls.add(imgUrl);
+                    }
+                }
+            }
+        }
+        
+        if (fileUrls.isEmpty()) {
+            throw new RuntimeException("No valid file URLs found");
+        }
+        
+        // Create ZIP
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ZipOutputStream zos = new ZipOutputStream(baos);
+        
+        for (int i = 0; i < fileUrls.size(); i++) {
+            String url = fileUrls.get(i);
+            try {
+                URL fileUrlObj = URI.create(url).toURL();
+                HttpURLConnection connection = (HttpURLConnection) fileUrlObj.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(30000);
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+                
+                if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                    continue;
+                }
+                
+                String fileName = "file_" + (i + 1);
+                String extension = "";
+                if (url.contains(".")) {
+                    String[] parts = url.split("\\.");
+                    if (parts.length > 1) {
+                        extension = "." + parts[parts.length - 1].split("\\?")[0];
+                    }
+                }
+                if (extension.isEmpty()) {
+                    extension = ".png";
+                }
+                fileName += extension;
+                
+                ZipEntry entry = new ZipEntry(fileName);
+                zos.putNextEntry(entry);
+                
+                InputStream inputStream = connection.getInputStream();
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    zos.write(buffer, 0, bytesRead);
+                }
+                inputStream.close();
+                zos.closeEntry();
+            } catch (Exception e) {
+                System.err.println("Failed to download file from URL: " + url + " - " + e.getMessage());
+            }
+        }
+        
+        zos.close();
+        byte[] zipBytes = baos.toByteArray();
+        
+        if (zipBytes.length == 0) {
+            throw new RuntimeException("Failed to download any files");
+        }
+        
+        // Upload ZIP to Cloudinary
+        String zipFileName = product.getName().replaceAll("[^a-zA-Z0-9]", "_") + "_files.zip";
+        String cloudinaryUrl = cloudinaryService.uploadFile(zipBytes, zipFileName, "products/digital-downloads");
+        
+        return cloudinaryUrl;
+    }
+    
+    /**
      * Downloads digital product files as a ZIP archive.
      * Fetches all files from Cloudinary URLs and bundles them into a ZIP.
      * For design products, includes ALL images from the source design product.
+     * If orderItemId is provided and has digitalDownloadUrl, returns redirect to that URL.
      */
     @Transactional(readOnly = true)
     public ResponseEntity<Resource> downloadDigitalProductFiles(Long productId) {

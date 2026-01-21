@@ -23,14 +23,17 @@ public class ProductController {
     public ResponseEntity<List<ProductDto>> getAllProducts(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String type,
-            @RequestParam(required = false) Long categoryId) {
-        List<ProductDto> products = productService.getAllProducts(status, type, categoryId);
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String userEmail) {
+        List<ProductDto> products = productService.getAllProducts(status, type, categoryId, userEmail);
         return ResponseEntity.ok(products);
     }
     
     @GetMapping("/products/{id}")
-    public ResponseEntity<ProductDto> getProductById(@PathVariable Long id) {
-        ProductDto product = productService.getProductById(id);
+    public ResponseEntity<ProductDto> getProductById(
+            @PathVariable Long id,
+            @RequestParam(required = false) String userEmail) {
+        ProductDto product = productService.getProductById(id, userEmail);
         return ResponseEntity.ok(product);
     }
     

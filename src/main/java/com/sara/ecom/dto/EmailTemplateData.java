@@ -59,6 +59,8 @@ public class EmailTemplateData {
         private BigDecimal unitPrice;
         private BigDecimal totalPrice;
         private String productType;
+        private String zipPassword; // For digital products
+        private String digitalDownloadUrl; // For digital products
     }
     
     // Cart email data

@@ -21,4 +21,9 @@ public interface BlogRepository extends JpaRepository<Blog, Long> {
     
     @Query("SELECT b FROM Blog b WHERE b.status = 'ACTIVE' ORDER BY b.views DESC")
     List<Blog> findPopularBlogs();
+    
+    List<Blog> findByIsHomepageFeaturedTrueAndStatusOrderByHomepagePositionAsc(Blog.Status status);
+    
+    @Query("SELECT b FROM Blog b WHERE b.isHomepageFeatured = true AND b.status = 'ACTIVE' ORDER BY b.homepagePosition ASC")
+    List<Blog> findHomepageFeaturedBlogs();
 }

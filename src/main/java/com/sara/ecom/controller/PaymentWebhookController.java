@@ -1,5 +1,7 @@
 package com.sara.ecom.controller;
 
+import com.sara.ecom.entity.Order;
+import com.sara.ecom.repository.OrderRepository;
 import com.sara.ecom.service.OrderService;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
@@ -28,6 +30,9 @@ public class PaymentWebhookController {
     
     @Autowired
     private com.sara.ecom.service.BusinessConfigService businessConfigService;
+
+    @Autowired
+    private OrderRepository orderRepository;
     
     @SuppressWarnings("unused")
     private String getStripeWebhookSecret() {
@@ -69,16 +74,37 @@ public class PaymentWebhookController {
                 PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
                     .getObject()
                     .orElse(null);
-                
+
                 if (paymentIntent != null) {
                     String orderId = paymentIntent.getMetadata().get("order_id");
                     if (orderId != null) {
                         // Update order payment status
+                        Long id = Long.parseLong(orderId);
                         orderService.updatePaymentStatus(
-                            Long.parseLong(orderId),
+                            id,
                             "PAID",
                             paymentIntent.getId()
                         );
+
+                        // Also persist gateway currency and amount actually charged
+                        try {
+                            Order order = orderRepository.findById(id).orElse(null);
+                            if (order != null) {
+                                if (paymentIntent.getCurrency() != null) {
+                                    order.setPaymentCurrency(paymentIntent.getCurrency().toUpperCase());
+                                }
+                                if (paymentIntent.getAmount() != null) {
+                                    // Stripe amount is in smallest unit (e.g. cents)
+                                    java.math.BigDecimal amt = java.math.BigDecimal
+                                            .valueOf(paymentIntent.getAmount())
+                                            .divide(java.math.BigDecimal.valueOf(100));
+                                    order.setPaymentAmount(amt);
+                                }
+                                orderRepository.save(order);
+                            }
+                        } catch (Exception ex) {
+                            logger.error("Failed to persist Stripe payment currency/amount for order {}", orderId, ex);
+                        }
                         logger.info("Stripe payment succeeded for order: {}", orderId);
                     }
                 }
@@ -162,6 +188,29 @@ public class PaymentWebhookController {
                 // Find order by order number
                 if (orderNumber != null) {
                     orderService.updatePaymentStatusByOrderNumber(orderNumber, "PAID", paymentId);
+
+                    // Persist gateway currency and amount from Razorpay
+                    try {
+                        // paymentEntity contains amount (in smallest unit) and currency
+                        Object currencyObj = paymentEntity.get("currency");
+                        Object amountObj = paymentEntity.get("amount");
+                        if (currencyObj != null && amountObj != null) {
+                            String currency = String.valueOf(currencyObj).toUpperCase();
+                            long amountMinor = Long.parseLong(String.valueOf(amountObj));
+                            java.math.BigDecimal amountMajor = java.math.BigDecimal
+                                    .valueOf(amountMinor)
+                                    .divide(java.math.BigDecimal.valueOf(100));
+
+                            Order order = orderRepository.findByOrderNumber(orderNumber).orElse(null);
+                            if (order != null) {
+                                order.setPaymentCurrency(currency);
+                                order.setPaymentAmount(amountMajor);
+                                orderRepository.save(order);
+                            }
+                        }
+                    } catch (Exception ex) {
+                        logger.error("Failed to persist Razorpay payment currency/amount for order {}", orderNumber, ex);
+                    }
                     logger.info("Razorpay payment succeeded for order: {}", orderNumber);
                 }
             } else if ("payment.failed".equals(event)) {

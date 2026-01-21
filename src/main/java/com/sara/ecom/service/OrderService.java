@@ -10,6 +10,7 @@ import com.sara.ecom.dto.CreateOrderRequest;
 import com.sara.ecom.dto.EmailTemplateData;
 import com.sara.ecom.dto.OrderDto;
 import com.sara.ecom.dto.UserAddressDto;
+import com.sara.ecom.entity.BusinessConfig;
 import com.sara.ecom.entity.Order;
 import com.sara.ecom.entity.OrderItem;
 import com.sara.ecom.entity.User;
@@ -61,8 +62,14 @@ public class OrderService {
     @Autowired
     private EmailService emailService;
     
-    // Placeholder hooks for future notification integrations (currently no-op)
-    private final NotificationHooks notificationHooks = new NotificationHooks();
+    @Autowired
+    private NotificationHooks notificationHooks;
+    
+    @Autowired
+    private ProductService productService;
+    
+    @Autowired
+    private BusinessConfigService businessConfigService;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -190,6 +197,45 @@ public class OrderService {
             }
         }
         
+        // Validate payment method for digital products
+        boolean hasDigitalProducts = cart.getItems().stream()
+                .anyMatch(item -> "DIGITAL".equals(item.getProductType()));
+        
+        if (hasDigitalProducts) {
+            String paymentMethod = request.getPaymentMethod();
+            if (paymentMethod == null || paymentMethod.trim().isEmpty()) {
+                throw new RuntimeException("Digital products require online payment only. Payment method is required.");
+            }
+            String paymentMethodLower = paymentMethod.toLowerCase();
+            if ("cod".equals(paymentMethodLower) || "cash_on_delivery".equals(paymentMethodLower)) {
+                throw new RuntimeException("Digital products require online payment only. COD is not available.");
+            }
+            // Also check for partial COD
+            if (paymentMethodLower.contains("partial") && paymentMethodLower.contains("cod")) {
+                throw new RuntimeException("Digital products require online payment only. Partial COD is not available.");
+            }
+        }
+        
+        // Validate email and phone are present (mandatory for order processing)
+        if (user.getEmail() == null || user.getEmail().trim().isEmpty()) {
+            throw new RuntimeException("Email is required for order processing");
+        }
+        String phoneNumber = user.getPhoneNumber();
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            // Try to get from shipping address
+            if (request.getShippingAddress() != null) {
+                try {
+                    Map<String, Object> shippingAddr = request.getShippingAddress();
+                    phoneNumber = (String) shippingAddr.get("phone");
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
+            if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+                throw new RuntimeException("Mobile number is required for order processing");
+            }
+        }
+        
         // Create order
         Order order = new Order();
         order.setId(orderId);
@@ -237,7 +283,35 @@ public class OrderService {
         
         // Calculate total: (Subtotal + GST + Shipping) - Coupon Discount
         BigDecimal gst = cart.getGst() != null ? cart.getGst() : BigDecimal.ZERO;
-        order.setTotal(cart.getSubtotal().add(gst).add(shipping).subtract(couponDiscount));
+        BigDecimal orderTotal = cart.getSubtotal().add(gst).add(shipping).subtract(couponDiscount);
+        order.setTotal(orderTotal);
+        
+        // Check BusinessConfig for partial COD settings
+        BusinessConfig businessConfig = businessConfigService.getConfigEntity();
+        
+        // For digital products, always use full online payment (ignore COD settings)
+        if (!hasDigitalProducts && businessConfig.getPartialCodEnabled() != null && businessConfig.getPartialCodEnabled()) {
+            // Partial COD: Calculate advance payment
+            Integer advancePercentage = businessConfig.getPartialCodAdvancePercentage();
+            if (advancePercentage != null && advancePercentage >= 10 && advancePercentage <= 90) {
+                BigDecimal advanceAmount = orderTotal.multiply(BigDecimal.valueOf(advancePercentage))
+                        .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+                
+                // Store advance amount as payment amount
+                order.setPaymentAmount(advanceAmount);
+            } else {
+                // Invalid percentage, use full amount
+                order.setPaymentAmount(orderTotal);
+            }
+        } else {
+            // Full payment (either full COD, online payment, or digital products)
+            order.setPaymentAmount(orderTotal);
+        }
+        
+        // Default payment currency to INR; gateway-specific handlers may override
+        if (order.getPaymentAmount() != null) {
+            order.setPaymentCurrency("INR");
+        }
         
         // Add items
         for (CartDto.CartItemDto cartItem : cart.getItems()) {
@@ -267,6 +341,9 @@ public class OrderService {
                     orderItem.setCustomDataJson("{}");
                 }
             }
+            
+            // ZIP generation for digital products will happen after payment is completed
+            // Do not generate ZIP here - wait for payment status = PAID
             
             order.addItem(orderItem);
         }
@@ -359,16 +436,29 @@ public class OrderService {
     
     @Transactional
     public OrderDto updateOrderStatus(Long orderId, String status) {
-        return updateOrderStatus(orderId, status, false);
+        return updateOrderStatus(orderId, status, null, null, false);
     }
     
     public OrderDto updateOrderStatus(Long orderId, String status, boolean skipWhatsApp) {
+        return updateOrderStatus(orderId, status, null, null, skipWhatsApp);
+    }
+    
+    public OrderDto updateOrderStatus(Long orderId, String status, String customStatus, String customMessage, boolean skipWhatsApp) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
         Order.OrderStatus oldStatus = order.getStatus();
+        String oldStatusString = oldStatus != null ? oldStatus.name() : null;
         Order.OrderStatus newStatus = Order.OrderStatus.valueOf(status.toUpperCase());
         order.setStatus(newStatus);
+        
+        // Set custom status if provided
+        if (customStatus != null && !customStatus.trim().isEmpty()) {
+            order.setCustomStatus(customStatus.trim());
+        } else {
+            // Clear custom status when setting standard status
+            order.setCustomStatus(null);
+        }
         
         Order savedOrder = orderRepository.save(order);
         
@@ -460,8 +550,44 @@ public class OrderService {
             e.printStackTrace();
         }
         
-        // Trigger notification hook (currently no-op, WhatsApp removed)
-        notificationHooks.onOrderStatusChanged(savedOrder);
+        // Trigger notification hook
+        String newStatusString = newStatus.name();
+        notificationHooks.onOrderStatusChanged(savedOrder, oldStatusString, newStatusString, customMessage, skipWhatsApp);
+        
+        return orderDto;
+    }
+    
+    /**
+     * Update order with custom status
+     */
+    @Transactional
+    public OrderDto updateCustomStatus(Long orderId, String customStatus, String customMessage, boolean skipWhatsApp) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        
+        String oldStatusString = order.getStatus() != null ? order.getStatus().name() : null;
+        
+        order.setCustomStatus(customStatus != null ? customStatus.trim() : null);
+        
+        Order savedOrder = orderRepository.save(order);
+        OrderDto orderDto = toOrderDto(savedOrder);
+        
+        // Send order status update email (optional - can be customized)
+        try {
+            User user = userRepository.findByEmail(savedOrder.getUserEmail()).orElse(null);
+            if (user != null) {
+                EmailTemplateData.OrderEmailData emailData = buildOrderEmailData(orderDto, user);
+                emailData.setOrderStatus(customStatus != null ? customStatus : savedOrder.getStatus().name());
+                // You can add custom email template here if needed
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to send order status email: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        // Trigger notification hook
+        String newStatusString = customStatus != null ? customStatus : (savedOrder.getStatus() != null ? savedOrder.getStatus().name() : "");
+        notificationHooks.onOrderStatusChanged(savedOrder, oldStatusString, newStatusString, customMessage, skipWhatsApp);
         
         return orderDto;
     }
@@ -501,6 +627,12 @@ public class OrderService {
             order.setPaymentId(paymentId);
         }
         Order savedOrder = orderRepository.save(order);
+        
+        // Generate password-protected ZIP for digital products when payment is completed
+        if (order.getPaymentStatus() == Order.PaymentStatus.PAID && oldPaymentStatus != Order.PaymentStatus.PAID) {
+            generateDigitalProductZip(savedOrder);
+        }
+        
         OrderDto orderDto = toOrderDto(savedOrder);
         
         // Send payment status email if status changed
@@ -539,6 +671,76 @@ public class OrderService {
         }
         
         return orderDto;
+    }
+    
+    /**
+     * Generates password-protected ZIP files for digital products in an order.
+     * Only called when payment status changes to PAID.
+     */
+    @Transactional
+    private void generateDigitalProductZip(Order order) {
+        if (order.getItems() == null || order.getItems().isEmpty()) {
+            return;
+        }
+        
+        // Get user email and phone for password generation
+        String userEmail = order.getUserEmail();
+        User user = userRepository.findByEmail(userEmail).orElse(null);
+        if (user == null) {
+            System.err.println("User not found for order: " + order.getId());
+            return;
+        }
+        
+        String phoneNumber = user.getPhoneNumber();
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            // Try to get phone from shipping address
+            try {
+                if (order.getShippingAddress() != null) {
+                    Map<String, Object> shippingAddr = objectMapper.readValue(order.getShippingAddress(), new TypeReference<Map<String, Object>>() {});
+                    phoneNumber = (String) shippingAddr.get("phone");
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to parse shipping address for phone: " + e.getMessage());
+            }
+        }
+        
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            System.err.println("Phone number not available for password generation in order: " + order.getId());
+            return;
+        }
+        
+        // Generate password: First 4 letters of email username (uppercase) + Last 4 digits of mobile
+        String emailUsername = userEmail.split("@")[0].toLowerCase();
+        String first4Letters = emailUsername.length() >= 4 
+            ? emailUsername.substring(0, 4).toUpperCase() 
+            : emailUsername.toUpperCase();
+        
+        String phoneDigits = phoneNumber.replaceAll("\\D", ""); // Remove non-digits
+        String last4Digits = phoneDigits.length() >= 4 
+            ? phoneDigits.substring(phoneDigits.length() - 4) 
+            : phoneDigits;
+        
+        String zipPassword = first4Letters + last4Digits;
+        
+        // Process each order item
+        for (OrderItem item : order.getItems()) {
+            if ("DIGITAL".equals(item.getProductType()) && item.getProductId() != null) {
+                try {
+                    // Generate password-protected ZIP
+                    String zipUrl = productService.generatePasswordProtectedZip(item.getProductId(), zipPassword);
+                    
+                    // Store ZIP URL and password in order item
+                    item.setDigitalDownloadUrl(zipUrl);
+                    item.setZipPassword(zipPassword);
+                    
+                    // Save order item
+                    orderRepository.save(order);
+                } catch (Exception e) {
+                    System.err.println("Failed to generate password-protected ZIP for digital product " + item.getProductId() + " in order " + order.getId() + ": " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+        }
     }
     
     @Transactional
@@ -644,6 +846,7 @@ public class OrderService {
         dto.setCouponCode(order.getCouponCode());
         dto.setCouponDiscount(order.getCouponDiscount());
         dto.setStatus(order.getStatus().name());
+        dto.setCustomStatus(order.getCustomStatus());
         dto.setPaymentStatus(order.getPaymentStatus().name());
         dto.setPaymentMethod(order.getPaymentMethod());
         dto.setNotes(order.getNotes());
@@ -655,6 +858,9 @@ public class OrderService {
         dto.setInvoiceStatus(order.getInvoiceStatus() != null ? order.getInvoiceStatus().name() : "NOT_CREATED");
         dto.setInvoiceCreatedAt(order.getInvoiceCreatedAt());
         dto.setCreatedAt(order.getCreatedAt());
+        // Payment currency and amount as recorded from gateway (fallbacks handled on frontend)
+        dto.setPaymentCurrency(order.getPaymentCurrency());
+        dto.setPaymentAmount(order.getPaymentAmount());
         
         // Parse addresses
         if (order.getShippingAddress() != null) {
@@ -693,6 +899,8 @@ public class OrderService {
         dto.setTotalPrice(item.getTotalPrice());
         dto.setDesignId(item.getDesignId());
         dto.setFabricId(item.getFabricId());
+        dto.setDigitalDownloadUrl(item.getDigitalDownloadUrl());
+        dto.setZipPassword(item.getZipPassword());
         
         if (item.getVariantsJson() != null) {
             try {
@@ -753,14 +961,21 @@ public class OrderService {
         List<EmailTemplateData.OrderItemData> orderItems = new ArrayList<>();
         if (orderDto.getItems() != null) {
             for (OrderDto.OrderItemDto item : orderDto.getItems()) {
-                orderItems.add(EmailTemplateData.OrderItemData.builder()
+                EmailTemplateData.OrderItemData.OrderItemDataBuilder builder = EmailTemplateData.OrderItemData.builder()
                     .productName(item.getName())
                     .productImage(item.getImage())
                     .quantity(item.getQuantity())
                     .unitPrice(item.getPrice())
                     .totalPrice(item.getTotalPrice())
-                    .productType(item.getProductType())
-                    .build());
+                    .productType(item.getProductType());
+                
+                // Add ZIP password and download URL for digital products
+                if ("DIGITAL".equals(item.getProductType())) {
+                    builder.zipPassword(item.getZipPassword());
+                    builder.digitalDownloadUrl(item.getDigitalDownloadUrl());
+                }
+                
+                orderItems.add(builder.build());
             }
         }
         

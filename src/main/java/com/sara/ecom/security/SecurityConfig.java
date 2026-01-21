@@ -47,6 +47,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/auth/**").permitAll()
                 // Public shipping endpoint (for guest checkout)
                 .requestMatchers("/api/shipping/calculate").permitAll()
+                // Payment methods endpoint (for checkout page)
+                .requestMatchers("/api/payment/methods").permitAll()
                 // Order endpoints (for guest checkout and confirmation page)
                 .requestMatchers("/api/orders").permitAll()
                 .requestMatchers("/api/orders/**").permitAll()

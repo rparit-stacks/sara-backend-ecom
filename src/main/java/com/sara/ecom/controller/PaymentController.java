@@ -3,7 +3,9 @@ package com.sara.ecom.controller;
 import com.sara.ecom.dto.PaymentRequest;
 import com.sara.ecom.dto.PaymentResponse;
 import com.sara.ecom.dto.PaymentVerificationRequest;
+import com.sara.ecom.entity.Order;
 import com.sara.ecom.enums.PaymentGateway;
+import com.sara.ecom.repository.OrderRepository;
 import com.sara.ecom.service.PaymentServiceManager;
 import com.sara.ecom.service.StripeService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,9 @@ public class PaymentController {
     
     @Autowired
     private StripeService stripeService;
+
+    @Autowired
+    private OrderRepository orderRepository;
     
     /**
      * Get available payment methods for a country
@@ -54,6 +59,22 @@ public class PaymentController {
     @PostMapping("/create-order")
     public ResponseEntity<PaymentResponse> createPaymentOrder(@RequestBody PaymentRequest request) {
         PaymentResponse response = paymentServiceManager.createPayment(request);
+
+        // Persist payment currency and amount on the Order so admin can see them
+        if (request.getOrderId() != null && request.getAmount() != null && request.getCurrency() != null) {
+            try {
+                Order order = orderRepository.findById(request.getOrderId()).orElse(null);
+                if (order != null) {
+                    order.setPaymentCurrency(request.getCurrency().toUpperCase());
+                    order.setPaymentAmount(request.getAmount());
+                    orderRepository.save(order);
+                }
+            } catch (Exception e) {
+                // Log but do not fail payment creation
+                System.err.println("Failed to persist payment currency/amount on order " +
+                        request.getOrderId() + ": " + e.getMessage());
+            }
+        }
         
         // Add Stripe public key to response if Stripe is being used
         if ("STRIPE".equalsIgnoreCase(request.getPaymentGateway()) && response.getGateway().equals("STRIPE")) {

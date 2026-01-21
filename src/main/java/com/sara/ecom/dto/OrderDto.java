@@ -20,6 +20,7 @@ public class OrderDto {
     private String couponCode;
     private BigDecimal couponDiscount;
     private String status;
+    private String customStatus;
     private String paymentStatus;
     private String paymentMethod;
     private String notes;
@@ -31,6 +32,9 @@ public class OrderDto {
     private String invoiceStatus; // NOT_CREATED or CREATED
     private LocalDateTime invoiceCreatedAt;
     private LocalDateTime createdAt;
+    // Payment currency and amount as charged/expected by gateway
+    private String paymentCurrency;
+    private BigDecimal paymentAmount;
     
     public static class OrderItemDto {
         private Long id;
@@ -45,6 +49,8 @@ public class OrderDto {
         private Map<String, Object> customData;
         private Long designId;
         private Long fabricId;
+        private String digitalDownloadUrl;
+        private String zipPassword;
         
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
@@ -70,6 +76,10 @@ public class OrderDto {
         public void setDesignId(Long designId) { this.designId = designId; }
         public Long getFabricId() { return fabricId; }
         public void setFabricId(Long fabricId) { this.fabricId = fabricId; }
+        public String getDigitalDownloadUrl() { return digitalDownloadUrl; }
+        public void setDigitalDownloadUrl(String digitalDownloadUrl) { this.digitalDownloadUrl = digitalDownloadUrl; }
+        public String getZipPassword() { return zipPassword; }
+        public void setZipPassword(String zipPassword) { this.zipPassword = zipPassword; }
     }
     
     // Getters and Setters
@@ -101,6 +111,16 @@ public class OrderDto {
     public void setCouponDiscount(BigDecimal couponDiscount) { this.couponDiscount = couponDiscount; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getCustomStatus() { 
+        return customStatus; 
+    }
+
+
+
+
+    public void setCustomStatus(String customStatus) { 
+        this.customStatus = customStatus; 
+    }
     public String getPaymentStatus() { return paymentStatus; }
     public void setPaymentStatus(String paymentStatus) { this.paymentStatus = paymentStatus; }
     public String getPaymentMethod() { return paymentMethod; }
@@ -123,4 +143,8 @@ public class OrderDto {
     public void setInvoiceCreatedAt(LocalDateTime invoiceCreatedAt) { this.invoiceCreatedAt = invoiceCreatedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public String getPaymentCurrency() { return paymentCurrency; }
+    public void setPaymentCurrency(String paymentCurrency) { this.paymentCurrency = paymentCurrency; }
+    public BigDecimal getPaymentAmount() { return paymentAmount; }
+    public void setPaymentAmount(BigDecimal paymentAmount) { this.paymentAmount = paymentAmount; }
 }

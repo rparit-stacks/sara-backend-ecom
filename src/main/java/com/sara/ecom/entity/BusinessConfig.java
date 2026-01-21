@@ -63,12 +63,41 @@ public class BusinessConfig {
     @Column(name = "stripe_enabled")
     private Boolean stripeEnabled = false;
     
+    // Payment Mode Configuration
+    @Column(name = "payment_mode", length = 50)
+    private String paymentMode; // "FULL_COD", "PARTIAL_COD", "ONLINE_PAYMENT"
+    
+    @Column(name = "partial_cod_advance_percentage")
+    private Integer partialCodAdvancePercentage; // 10-90
+    
+    @Column(name = "cod_enabled")
+    private Boolean codEnabled = false;
+    
+    @Column(name = "partial_cod_enabled")
+    private Boolean partialCodEnabled = false;
+    
+    @Column(name = "online_payment_enabled")
+    private Boolean onlinePaymentEnabled = true;
+    
     // Currency API Configuration
     @Column(name = "currency_api_key", length = 255)
     private String currencyApiKey;
     
     @Column(name = "currency_api_provider", length = 50)
     private String currencyApiProvider = "exchangerate-api";
+    
+    // DoubleTick WhatsApp Configuration
+    @Column(name = "doubletick_api_key", columnDefinition = "TEXT")
+    private String doubletickApiKey;
+    
+    @Column(name = "doubletick_sender_number", length = 50)
+    private String doubletickSenderNumber;
+    
+    @Column(name = "doubletick_template_name", length = 100)
+    private String doubletickTemplateName; // Template name for DoubleTick (e.g., "order_status_update")
+    
+    @Column(name = "doubletick_enabled")
+    private Boolean doubletickEnabled = false;
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -264,5 +293,79 @@ public class BusinessConfig {
     
     public void setCurrencyApiProvider(String currencyApiProvider) {
         this.currencyApiProvider = currencyApiProvider;
+    }
+    
+    // DoubleTick WhatsApp Getters and Setters
+    public String getDoubletickApiKey() {
+        return doubletickApiKey;
+    }
+    
+    public void setDoubletickApiKey(String doubletickApiKey) {
+        this.doubletickApiKey = doubletickApiKey;
+    }
+    
+    public String getDoubletickSenderNumber() {
+        return doubletickSenderNumber;
+    }
+    
+    public void setDoubletickSenderNumber(String doubletickSenderNumber) {
+        this.doubletickSenderNumber = doubletickSenderNumber;
+    }
+    
+    public Boolean getDoubletickEnabled() {
+        return doubletickEnabled;
+    }
+    
+    public void setDoubletickEnabled(Boolean doubletickEnabled) {
+        this.doubletickEnabled = doubletickEnabled;
+    }
+    
+    public String getDoubletickTemplateName() {
+        return doubletickTemplateName;
+    }
+    
+    public void setDoubletickTemplateName(String doubletickTemplateName) {
+        this.doubletickTemplateName = doubletickTemplateName;
+    }
+    
+    // Payment Mode Getters and Setters
+    public String getPaymentMode() {
+        return paymentMode;
+    }
+    
+    public void setPaymentMode(String paymentMode) {
+        this.paymentMode = paymentMode;
+    }
+    
+    public Integer getPartialCodAdvancePercentage() {
+        return partialCodAdvancePercentage;
+    }
+    
+    public void setPartialCodAdvancePercentage(Integer partialCodAdvancePercentage) {
+        this.partialCodAdvancePercentage = partialCodAdvancePercentage;
+    }
+    
+    public Boolean getCodEnabled() {
+        return codEnabled;
+    }
+    
+    public void setCodEnabled(Boolean codEnabled) {
+        this.codEnabled = codEnabled;
+    }
+    
+    public Boolean getPartialCodEnabled() {
+        return partialCodEnabled;
+    }
+    
+    public void setPartialCodEnabled(Boolean partialCodEnabled) {
+        this.partialCodEnabled = partialCodEnabled;
+    }
+    
+    public Boolean getOnlinePaymentEnabled() {
+        return onlinePaymentEnabled;
+    }
+    
+    public void setOnlinePaymentEnabled(Boolean onlinePaymentEnabled) {
+        this.onlinePaymentEnabled = onlinePaymentEnabled;
     }
 }

@@ -57,7 +57,9 @@ public class OrderDto {
         private BigDecimal price;
         private Integer quantity;
         private BigDecimal totalPrice;
-        private Map<String, String> variants;
+        private Map<String, String> variants; // Legacy format for backward compatibility
+        private Map<String, VariantSelectionDto> variantSelections; // New structured format
+        private List<VariantDisplayInfo> variantDisplay; // Resolved variant/option names for display
         private Map<String, Object> customData;
         private Long designId;
         private Long fabricId;
@@ -82,6 +84,10 @@ public class OrderDto {
         public void setTotalPrice(BigDecimal totalPrice) { this.totalPrice = totalPrice; }
         public Map<String, String> getVariants() { return variants; }
         public void setVariants(Map<String, String> variants) { this.variants = variants; }
+        public Map<String, VariantSelectionDto> getVariantSelections() { return variantSelections; }
+        public void setVariantSelections(Map<String, VariantSelectionDto> variantSelections) { this.variantSelections = variantSelections; }
+        public List<VariantDisplayInfo> getVariantDisplay() { return variantDisplay; }
+        public void setVariantDisplay(List<VariantDisplayInfo> variantDisplay) { this.variantDisplay = variantDisplay; }
         public Map<String, Object> getCustomData() { return customData; }
         public void setCustomData(Map<String, Object> customData) { this.customData = customData; }
         public Long getDesignId() { return designId; }

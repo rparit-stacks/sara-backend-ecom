@@ -10,6 +10,8 @@ import com.sara.ecom.dto.CreateOrderRequest;
 import com.sara.ecom.dto.EmailTemplateData;
 import com.sara.ecom.dto.OrderDto;
 import com.sara.ecom.dto.UserAddressDto;
+import com.sara.ecom.dto.VariantSelectionDto;
+import com.sara.ecom.dto.VariantDisplayInfo;
 import com.sara.ecom.entity.Order;
 import com.sara.ecom.entity.OrderItem;
 import com.sara.ecom.entity.OrderPaymentHistory;
@@ -1481,11 +1483,43 @@ public class OrderService {
         dto.setDigitalDownloadUrl(item.getDigitalDownloadUrl());
         dto.setZipPassword(item.getZipPassword());
         
-        if (item.getVariantsJson() != null) {
+        // Parse variants - try structured format first, fallback to legacy format
+        if (item.getVariantsJson() != null && !item.getVariantsJson().isEmpty()) {
             try {
-                dto.setVariants(objectMapper.readValue(item.getVariantsJson(), new TypeReference<Map<String, String>>() {}));
+                // Try to parse as structured format (Map<String, VariantSelectionDto>)
+                Map<String, VariantSelectionDto> structuredVariants = objectMapper.readValue(
+                    item.getVariantsJson(), 
+                    new TypeReference<Map<String, VariantSelectionDto>>() {}
+                );
+                if (structuredVariants != null && !structuredVariants.isEmpty()) {
+                    dto.setVariantSelections(structuredVariants);
+                    // Also populate legacy format for backward compatibility
+                    Map<String, String> legacyVariants = new HashMap<>();
+                    for (Map.Entry<String, VariantSelectionDto> entry : structuredVariants.entrySet()) {
+                        VariantSelectionDto selection = entry.getValue();
+                        if (selection != null && selection.getOptionValue() != null) {
+                            String key = selection.getVariantFrontendId() != null 
+                                ? selection.getVariantFrontendId() 
+                                : String.valueOf(selection.getVariantId());
+                            legacyVariants.put(key, selection.getOptionValue());
+                        }
+                    }
+                    dto.setVariants(legacyVariants);
+                    
+                    // Resolve variant/option names for display
+                    List<VariantDisplayInfo> variantDisplay = resolveVariantNames(item.getProductId(), structuredVariants);
+                    dto.setVariantDisplay(variantDisplay);
+                } else {
+                    // Fallback to legacy format
+                    dto.setVariants(objectMapper.readValue(item.getVariantsJson(), new TypeReference<Map<String, String>>() {}));
+                }
             } catch (JsonProcessingException e) {
-                dto.setVariants(new HashMap<>());
+                // If structured format fails, try legacy format
+                try {
+                    dto.setVariants(objectMapper.readValue(item.getVariantsJson(), new TypeReference<Map<String, String>>() {}));
+                } catch (JsonProcessingException e2) {
+                    dto.setVariants(new HashMap<>());
+                }
             }
         }
         
@@ -1498,6 +1532,113 @@ public class OrderService {
         }
         
         return dto;
+    }
+    
+    /**
+     * Resolves variant and option names from product for display purposes.
+     * Uses stored IDs to look up names from the product.
+     */
+    private List<VariantDisplayInfo> resolveVariantNames(Long productId, Map<String, VariantSelectionDto> variantSelections) {
+        List<VariantDisplayInfo> displayList = new ArrayList<>();
+        
+        if (productId == null || variantSelections == null || variantSelections.isEmpty()) {
+            return displayList;
+        }
+        
+        try {
+            com.sara.ecom.entity.Product product = productRepository.findById(productId).orElse(null);
+            if (product == null || product.getVariants() == null) {
+                // If product not found, use data from variantSelections
+                for (VariantSelectionDto selection : variantSelections.values()) {
+                    if (selection != null) {
+                        VariantDisplayInfo info = new VariantDisplayInfo();
+                        info.setVariantName(selection.getVariantName() != null ? selection.getVariantName() : "Unknown");
+                        info.setVariantType(selection.getVariantType());
+                        info.setVariantUnit(selection.getVariantUnit());
+                        info.setOptionValue(selection.getOptionValue() != null ? selection.getOptionValue() : "Unknown");
+                        info.setPriceModifier(selection.getPriceModifier());
+                        displayList.add(info);
+                    }
+                }
+                return displayList;
+            }
+            
+            // Resolve names from product variants
+            for (VariantSelectionDto selection : variantSelections.values()) {
+                if (selection == null) continue;
+                
+                VariantDisplayInfo info = new VariantDisplayInfo();
+                
+                // Find variant by ID or frontendId
+                com.sara.ecom.entity.ProductVariant variant = null;
+                if (selection.getVariantId() != null) {
+                    variant = product.getVariants().stream()
+                        .filter(v -> v.getId().equals(selection.getVariantId()))
+                        .findFirst()
+                        .orElse(null);
+                }
+                if (variant == null && selection.getVariantFrontendId() != null) {
+                    variant = product.getVariants().stream()
+                        .filter(v -> selection.getVariantFrontendId().equals(v.getFrontendId()))
+                        .findFirst()
+                        .orElse(null);
+                }
+                
+                if (variant != null) {
+                    info.setVariantName(variant.getName());
+                    info.setVariantType(variant.getType());
+                    info.setVariantUnit(variant.getUnit());
+                    
+                    // Find option by ID or frontendId
+                    com.sara.ecom.entity.ProductVariantOption option = null;
+                    if (selection.getOptionId() != null) {
+                        option = variant.getOptions().stream()
+                            .filter(o -> o.getId().equals(selection.getOptionId()))
+                            .findFirst()
+                            .orElse(null);
+                    }
+                    if (option == null && selection.getOptionFrontendId() != null) {
+                        option = variant.getOptions().stream()
+                            .filter(o -> selection.getOptionFrontendId().equals(o.getFrontendId()))
+                            .findFirst()
+                            .orElse(null);
+                    }
+                    
+                    if (option != null) {
+                        info.setOptionValue(option.getValue());
+                        info.setPriceModifier(option.getPriceModifier());
+                    } else {
+                        // Fallback to stored value
+                        info.setOptionValue(selection.getOptionValue() != null ? selection.getOptionValue() : "Unknown");
+                        info.setPriceModifier(selection.getPriceModifier());
+                    }
+                } else {
+                    // Fallback to stored data
+                    info.setVariantName(selection.getVariantName() != null ? selection.getVariantName() : "Unknown");
+                    info.setVariantType(selection.getVariantType());
+                    info.setVariantUnit(selection.getVariantUnit());
+                    info.setOptionValue(selection.getOptionValue() != null ? selection.getOptionValue() : "Unknown");
+                    info.setPriceModifier(selection.getPriceModifier());
+                }
+                
+                displayList.add(info);
+            }
+        } catch (Exception e) {
+            // If resolution fails, use stored data
+            for (VariantSelectionDto selection : variantSelections.values()) {
+                if (selection != null) {
+                    VariantDisplayInfo info = new VariantDisplayInfo();
+                    info.setVariantName(selection.getVariantName() != null ? selection.getVariantName() : "Unknown");
+                    info.setVariantType(selection.getVariantType());
+                    info.setVariantUnit(selection.getVariantUnit());
+                    info.setOptionValue(selection.getOptionValue() != null ? selection.getOptionValue() : "Unknown");
+                    info.setPriceModifier(selection.getPriceModifier());
+                    displayList.add(info);
+                }
+            }
+        }
+        
+        return displayList;
     }
     
     /**

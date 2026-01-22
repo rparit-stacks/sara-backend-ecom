@@ -29,23 +29,31 @@ public class CategoryService {
     
     @Transactional
     public List<CategoryDto> getAllCategories(String userEmail) {
+        return getAllCategories(userEmail, false);
+    }
+    
+    @Transactional
+    public List<CategoryDto> getAllCategories(String userEmail, boolean isAdmin) {
         List<Category> categories = categoryRepository.findByParentIdIsNull();
         
-        // Filter by user email if provided
-        if (userEmail != null && !userEmail.trim().isEmpty()) {
-            categories = categories.stream()
-                    .filter(category -> isCategoryAccessible(category, userEmail))
-                    .collect(Collectors.toList());
-        } else {
-            // If no user email (not logged in), only show public categories
-            categories = categories.stream()
-                    .filter(category -> category.getAllowedEmails() == null || category.getAllowedEmails().trim().isEmpty())
-                    .collect(Collectors.toList());
+        // Admins can see all categories
+        if (!isAdmin) {
+            // Filter by user email if provided
+            if (userEmail != null && !userEmail.trim().isEmpty()) {
+                categories = categories.stream()
+                        .filter(category -> isCategoryAccessible(category, userEmail, false))
+                        .collect(Collectors.toList());
+            } else {
+                // If no user email (not logged in), only show public categories
+                categories = categories.stream()
+                        .filter(category -> category.getAllowedEmails() == null || category.getAllowedEmails().trim().isEmpty())
+                        .collect(Collectors.toList());
+            }
         }
         
         return categories.stream()
                 .map(this::buildCategoryTree)
-                .map(category -> filterCategoryTreeByEmail(category, userEmail))
+                .map(category -> filterCategoryTreeByEmail(category, userEmail, isAdmin))
                 .filter(category -> category != null)
                 .map(CategoryDto::fromEntity)
                 .collect(Collectors.toList());
@@ -58,23 +66,31 @@ public class CategoryService {
     
     @Transactional
     public List<CategoryDto> getActiveCategories(String userEmail) {
+        return getActiveCategories(userEmail, false);
+    }
+    
+    @Transactional
+    public List<CategoryDto> getActiveCategories(String userEmail, boolean isAdmin) {
         List<Category> categories = categoryRepository.findByParentIdIsNullAndStatus(Category.Status.ACTIVE);
         
-        // Filter by user email if provided
-        if (userEmail != null && !userEmail.trim().isEmpty()) {
-            categories = categories.stream()
-                    .filter(category -> isCategoryAccessible(category, userEmail))
-                    .collect(Collectors.toList());
-        } else {
-            // If no user email (not logged in), only show public categories
-            categories = categories.stream()
-                    .filter(category -> category.getAllowedEmails() == null || category.getAllowedEmails().trim().isEmpty())
-                    .collect(Collectors.toList());
+        // Admins can see all categories
+        if (!isAdmin) {
+            // Filter by user email if provided
+            if (userEmail != null && !userEmail.trim().isEmpty()) {
+                categories = categories.stream()
+                        .filter(category -> isCategoryAccessible(category, userEmail, false))
+                        .collect(Collectors.toList());
+            } else {
+                // If no user email (not logged in), only show public categories
+                categories = categories.stream()
+                        .filter(category -> category.getAllowedEmails() == null || category.getAllowedEmails().trim().isEmpty())
+                        .collect(Collectors.toList());
+            }
         }
         
         return categories.stream()
                 .map(this::buildCategoryTree)
-                .map(category -> filterCategoryTreeByEmail(category, userEmail))
+                .map(category -> filterCategoryTreeByEmail(category, userEmail, isAdmin))
                 .filter(category -> category != null)
                 .map(CategoryDto::fromEntity)
                 .collect(Collectors.toList());
@@ -105,10 +121,39 @@ public class CategoryService {
     
     /**
      * Checks if a category is accessible to a user based on email restrictions.
-     * Also checks parent categories recursively.
+     * Also checks parent categories recursively - if any parent has restrictions, child inherits them.
+     * Admins can always access all categories regardless of restrictions.
      */
     public boolean isCategoryAccessible(Category category, String userEmail) {
-        // If no email restriction, category is accessible
+        return isCategoryAccessible(category, userEmail, false);
+    }
+    
+    /**
+     * Checks if a category is accessible to a user based on email restrictions.
+     * Also checks parent categories recursively - if any parent has restrictions, child inherits them.
+     * @param isAdmin If true, admin can access all categories regardless of restrictions
+     */
+    public boolean isCategoryAccessible(Category category, String userEmail, boolean isAdmin) {
+        if (category == null) {
+            return false;
+        }
+        
+        // Admins can always access all categories
+        if (isAdmin) {
+            return true;
+        }
+        
+        // Check parent category first (recursively)
+        if (category.getParentId() != null) {
+            Category parent = categoryRepository.findById(category.getParentId()).orElse(null);
+            if (parent != null && !isCategoryAccessible(parent, userEmail, false)) {
+                // If parent is not accessible, child is not accessible
+                return false;
+            }
+        }
+        
+        // Check current category's restrictions
+        // If no email restriction, category is accessible (assuming parent is accessible)
         if (category.getAllowedEmails() == null || category.getAllowedEmails().trim().isEmpty()) {
             return true;
         }
@@ -133,26 +178,93 @@ public class CategoryService {
      * Recursively filters category tree by email, removing inaccessible subcategories.
      */
     private Category filterCategoryTreeByEmail(Category category, String userEmail) {
+        return filterCategoryTreeByEmail(category, userEmail, false);
+    }
+    
+    /**
+     * Recursively filters category tree by email, removing inaccessible subcategories.
+     * @param isAdmin If true, admin can see all categories
+     */
+    private Category filterCategoryTreeByEmail(Category category, String userEmail, boolean isAdmin) {
         if (category == null) {
             return null;
+        }
+        
+        // Admins can see all categories
+        if (isAdmin) {
+            // Still need to build subcategories tree
+            List<Category> subcategories = categoryRepository.findByParentId(category.getId());
+            List<Category> allSubcategories = subcategories.stream()
+                    .map(sub -> filterCategoryTreeByEmail(sub, userEmail, true))
+                    .filter(sub -> sub != null)
+                    .collect(Collectors.toList());
+            category.setSubcategories(allSubcategories);
+            return category;
         }
         
         // Filter subcategories
         List<Category> subcategories = categoryRepository.findByParentId(category.getId());
         List<Category> accessibleSubcategories = subcategories.stream()
-                .filter(sub -> isCategoryAccessible(sub, userEmail))
-                .map(sub -> filterCategoryTreeByEmail(sub, userEmail))
+                .filter(sub -> isCategoryAccessible(sub, userEmail, false))
+                .map(sub -> filterCategoryTreeByEmail(sub, userEmail, false))
                 .filter(sub -> sub != null)
                 .collect(Collectors.toList());
         
         category.setSubcategories(accessibleSubcategories);
         
         // If category itself is not accessible, return null
-        if (!isCategoryAccessible(category, userEmail)) {
+        if (!isCategoryAccessible(category, userEmail, false)) {
             return null;
         }
         
         return category;
+    }
+    
+    /**
+     * Recursively filters CategoryDto by email, removing inaccessible subcategories.
+     */
+    private CategoryDto filterCategoryDtoByEmail(CategoryDto dto, String userEmail) {
+        return filterCategoryDtoByEmail(dto, userEmail, false);
+    }
+    
+    /**
+     * Recursively filters CategoryDto by email, removing inaccessible subcategories.
+     * @param isAdmin If true, admin can see all categories
+     */
+    private CategoryDto filterCategoryDtoByEmail(CategoryDto dto, String userEmail, boolean isAdmin) {
+        if (dto == null) {
+            return null;
+        }
+        
+        // Admins can see all categories
+        if (isAdmin) {
+            // Still need to filter subcategories recursively
+            if (dto.getSubcategories() != null && !dto.getSubcategories().isEmpty()) {
+                List<CategoryDto> allSubcategories = dto.getSubcategories().stream()
+                        .map(sub -> filterCategoryDtoByEmail(sub, userEmail, true))
+                        .filter(sub -> sub != null)
+                        .collect(Collectors.toList());
+                dto.setSubcategories(allSubcategories);
+            }
+            return dto;
+        }
+        
+        // Check if category itself is accessible
+        Category category = categoryRepository.findById(dto.getId()).orElse(null);
+        if (category != null && !isCategoryAccessible(category, userEmail, false)) {
+            return null;
+        }
+        
+        // Filter subcategories recursively
+        if (dto.getSubcategories() != null && !dto.getSubcategories().isEmpty()) {
+            List<CategoryDto> accessibleSubcategories = dto.getSubcategories().stream()
+                    .map(sub -> filterCategoryDtoByEmail(sub, userEmail, false))
+                    .filter(sub -> sub != null)
+                    .collect(Collectors.toList());
+            dto.setSubcategories(accessibleSubcategories);
+        }
+        
+        return dto;
     }
     
     @Transactional
@@ -166,15 +278,43 @@ public class CategoryService {
     
     @Transactional
     public CategoryDto getCategoryBySlug(String slug) {
+        return getCategoryBySlug(slug, null);
+    }
+    
+    @Transactional
+    public CategoryDto getCategoryBySlug(String slug, String userEmail) {
+        return getCategoryBySlug(slug, userEmail, false);
+    }
+    
+    @Transactional
+    public CategoryDto getCategoryBySlug(String slug, String userEmail, boolean isAdmin) {
         Category category = categoryRepository.findBySlugAndStatus(slug, Category.Status.ACTIVE)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", slug));
+        
+        // Check if category is accessible (admins can access all)
+        if (!isCategoryAccessible(category, userEmail, isAdmin)) {
+            throw new ResourceNotFoundException("Category", slug);
+        }
+        
         CategoryDto dto = CategoryDto.fromEntity(buildCategoryTree(category));
+        // Filter subcategories by email (admins see all)
+        dto = filterCategoryDtoByEmail(dto, userEmail, isAdmin);
         enrichCategoryWithProductCount(dto);
         return dto;
     }
     
     @Transactional
     public CategoryDto getCategoryBySlugPath(String slugPath) {
+        return getCategoryBySlugPath(slugPath, null);
+    }
+    
+    @Transactional
+    public CategoryDto getCategoryBySlugPath(String slugPath, String userEmail) {
+        return getCategoryBySlugPath(slugPath, userEmail, false);
+    }
+    
+    @Transactional
+    public CategoryDto getCategoryBySlugPath(String slugPath, String userEmail, boolean isAdmin) {
         // Parse hierarchical slug path: "men/shirts/formal-shirts"
         // NOTE: This method supports UNLIMITED depth - no 3-layer limit!
         // It will navigate through as many levels as provided in the path
@@ -197,6 +337,11 @@ public class CategoryService {
             if (existsButInactive) {
                 throw new ResourceNotFoundException("Category '" + slugs[0] + "' exists but is not active");
             }
+            throw new ResourceNotFoundException("Category", slugs[0]);
+        }
+        
+        // Check if root category is accessible (admins can access all)
+        if (!isCategoryAccessible(currentCategory, userEmail, isAdmin)) {
             throw new ResourceNotFoundException("Category", slugs[0]);
         }
         
@@ -242,10 +387,17 @@ public class CategoryService {
                         "Available subcategories: " + (availableSlugs.isEmpty() ? "none" : availableSlugs));
             }
             
+            // Check if subcategory is accessible (admins can access all)
+            if (!isCategoryAccessible(found, userEmail, isAdmin)) {
+                throw new ResourceNotFoundException("Category", slug);
+            }
+            
             currentCategory = found;
         }
         
         CategoryDto dto = CategoryDto.fromEntity(buildCategoryTree(currentCategory));
+        // Filter subcategories by email (admins see all)
+        dto = filterCategoryDtoByEmail(dto, userEmail, isAdmin);
         enrichCategoryWithProductCount(dto);
         return dto;
     }

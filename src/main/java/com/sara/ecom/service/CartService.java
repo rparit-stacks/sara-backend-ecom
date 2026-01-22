@@ -7,6 +7,7 @@ import com.sara.ecom.dto.AddToCartRequest;
 import com.sara.ecom.dto.CartDto;
 import com.sara.ecom.dto.CouponDto;
 import com.sara.ecom.dto.EmailTemplateData;
+import com.sara.ecom.dto.VariantSelectionDto;
 import com.sara.ecom.entity.User;
 import com.sara.ecom.entity.CartItem;
 import com.sara.ecom.repository.CartItemRepository;
@@ -150,7 +151,16 @@ public class CartService {
         item.setQuantity(request.getQuantity() != null ? request.getQuantity() : 1);
         item.setUnitPrice(request.getUnitPrice());
         
-        if (request.getVariants() != null) {
+        // Store variants - prefer new structured format, fallback to legacy format
+        if (request.getVariantSelections() != null && !request.getVariantSelections().isEmpty()) {
+            try {
+                // Store structured variant selections
+                item.setVariants(objectMapper.writeValueAsString(request.getVariantSelections()));
+            } catch (JsonProcessingException e) {
+                item.setVariants("{}");
+            }
+        } else if (request.getVariants() != null) {
+            // Legacy format support for backward compatibility
             try {
                 item.setVariants(objectMapper.writeValueAsString(request.getVariants()));
             } catch (JsonProcessingException e) {
@@ -276,11 +286,40 @@ public class CartService {
         dto.setGstRate(BigDecimal.ZERO);
         dto.setGstAmount(BigDecimal.ZERO);
         
+        // Parse variants - try structured format first, fallback to legacy format
         if (item.getVariants() != null && !item.getVariants().isEmpty()) {
             try {
-                dto.setVariants(objectMapper.readValue(item.getVariants(), new TypeReference<Map<String, String>>() {}));
+                // Try to parse as structured format (Map<String, VariantSelectionDto>)
+                Map<String, VariantSelectionDto> structuredVariants = objectMapper.readValue(
+                    item.getVariants(), 
+                    new TypeReference<Map<String, VariantSelectionDto>>() {}
+                );
+                if (structuredVariants != null && !structuredVariants.isEmpty()) {
+                    dto.setVariantSelections(structuredVariants);
+                    // Also populate legacy format for backward compatibility
+                    Map<String, String> legacyVariants = new HashMap<>();
+                    for (Map.Entry<String, VariantSelectionDto> entry : structuredVariants.entrySet()) {
+                        VariantSelectionDto selection = entry.getValue();
+                        if (selection != null && selection.getOptionValue() != null) {
+                            // Use frontendId as key if available, otherwise use variantId
+                            String key = selection.getVariantFrontendId() != null 
+                                ? selection.getVariantFrontendId() 
+                                : String.valueOf(selection.getVariantId());
+                            legacyVariants.put(key, selection.getOptionValue());
+                        }
+                    }
+                    dto.setVariants(legacyVariants);
+                } else {
+                    // Fallback to legacy format
+                    dto.setVariants(objectMapper.readValue(item.getVariants(), new TypeReference<Map<String, String>>() {}));
+                }
             } catch (JsonProcessingException e) {
-                dto.setVariants(new HashMap<>());
+                // If structured format fails, try legacy format
+                try {
+                    dto.setVariants(objectMapper.readValue(item.getVariants(), new TypeReference<Map<String, String>>() {}));
+                } catch (JsonProcessingException e2) {
+                    dto.setVariants(new HashMap<>());
+                }
             }
         }
         

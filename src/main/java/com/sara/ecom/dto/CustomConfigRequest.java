@@ -30,6 +30,9 @@ public class CustomConfigRequest {
     private List<VariantRequest> variants;
     private List<PricingSlabRequest> pricingSlabs;
     
+    // Form Fields
+    private List<FormFieldRequest> formFields;
+    
     public static class FormFieldRequest {
         private String type;
         private String label;
@@ -103,6 +106,10 @@ public class CustomConfigRequest {
     public void setVariants(List<VariantRequest> variants) { this.variants = variants; }
     public List<PricingSlabRequest> getPricingSlabs() { return pricingSlabs; }
     public void setPricingSlabs(List<PricingSlabRequest> pricingSlabs) { this.pricingSlabs = pricingSlabs; }
+    
+    // Form Fields Getters and Setters
+    public List<FormFieldRequest> getFormFields() { return formFields; }
+    public void setFormFields(List<FormFieldRequest> formFields) { this.formFields = formFields; }
     
     public static class VariantRequest {
         private String type;

@@ -4,10 +4,12 @@ import com.sara.ecom.dto.ProductDto;
 import com.sara.ecom.dto.ProductRequest;
 import com.sara.ecom.entity.Product;
 import com.sara.ecom.service.ProductService;
+import com.sara.ecom.service.JwtService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 
@@ -18,29 +20,57 @@ public class ProductController {
     @Autowired
     private ProductService productService;
     
+    @Autowired
+    private JwtService jwtService;
+    
+    /**
+     * Helper method to check if request is from admin
+     */
+    private boolean isAdminRequest(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                String token = authHeader.substring(7);
+                return jwtService.isAdminToken(token);
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        // Also check if path is admin endpoint
+        return request.getRequestURI().startsWith("/api/admin/");
+    }
+    
     // Public endpoints
     @GetMapping("/products")
     public ResponseEntity<List<ProductDto>> getAllProducts(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) String userEmail) {
-        List<ProductDto> products = productService.getAllProducts(status, type, categoryId, userEmail);
+            @RequestParam(required = false) String userEmail,
+            HttpServletRequest request) {
+        boolean isAdmin = isAdminRequest(request);
+        List<ProductDto> products = productService.getAllProducts(status, type, categoryId, userEmail, isAdmin);
         return ResponseEntity.ok(products);
     }
     
     @GetMapping("/products/{id}")
     public ResponseEntity<ProductDto> getProductById(
             @PathVariable Long id,
-            @RequestParam(required = false) String userEmail) {
-        ProductDto product = productService.getProductById(id, userEmail);
+            @RequestParam(required = false) String userEmail,
+            HttpServletRequest request) {
+        boolean isAdmin = isAdminRequest(request);
+        ProductDto product = productService.getProductById(id, userEmail, isAdmin);
         return ResponseEntity.ok(product);
     }
     
     // Slug-based product route - must be after /products/{id} to avoid conflicts
     @GetMapping("/products/slug/{slug}")
-    public ResponseEntity<ProductDto> getProductBySlug(@PathVariable String slug) {
-        ProductDto product = productService.getProductBySlug(slug);
+    public ResponseEntity<ProductDto> getProductBySlug(
+            @PathVariable String slug,
+            @RequestParam(required = false) String userEmail,
+            HttpServletRequest request) {
+        boolean isAdmin = isAdminRequest(request);
+        ProductDto product = productService.getProductBySlug(slug, userEmail, isAdmin);
         return ResponseEntity.ok(product);
     }
     
@@ -56,8 +86,12 @@ public class ProductController {
      * This is useful for category pages that should show products from subcategories too.
      */
     @GetMapping("/products/category/{categoryId}/with-children")
-    public ResponseEntity<List<ProductDto>> getProductsByCategoryWithChildren(@PathVariable Long categoryId) {
-        List<ProductDto> products = productService.getProductsByCategoryWithChildren(categoryId);
+    public ResponseEntity<List<ProductDto>> getProductsByCategoryWithChildren(
+            @PathVariable Long categoryId,
+            @RequestParam(required = false) String userEmail,
+            HttpServletRequest request) {
+        boolean isAdmin = isAdminRequest(request);
+        List<ProductDto> products = productService.getProductsByCategoryWithChildren(categoryId, userEmail, isAdmin);
         return ResponseEntity.ok(products);
     }
     

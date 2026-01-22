@@ -12,7 +12,10 @@ public class AddToCartRequest {
     private Long fabricId;
     private BigDecimal fabricPrice;
     private BigDecimal designPrice;
+    // Legacy format: Map<String, String> for backward compatibility
     private Map<String, String> variants;
+    // New structured format: Map<String, VariantSelectionDto> for better data integrity
+    private Map<String, VariantSelectionDto> variantSelections;
     private Map<String, Object> customFormData;
     private String uploadedDesignUrl;
     private Integer quantity;
@@ -38,6 +41,8 @@ public class AddToCartRequest {
     public void setDesignPrice(BigDecimal designPrice) { this.designPrice = designPrice; }
     public Map<String, String> getVariants() { return variants; }
     public void setVariants(Map<String, String> variants) { this.variants = variants; }
+    public Map<String, VariantSelectionDto> getVariantSelections() { return variantSelections; }
+    public void setVariantSelections(Map<String, VariantSelectionDto> variantSelections) { this.variantSelections = variantSelections; }
     public Map<String, Object> getCustomFormData() { return customFormData; }
     public void setCustomFormData(Map<String, Object> customFormData) { this.customFormData = customFormData; }
     public String getUploadedDesignUrl() { return uploadedDesignUrl; }

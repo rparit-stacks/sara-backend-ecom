@@ -128,6 +128,11 @@ public class CustomConfigService {
             updatePricingSlabs(config, request.getPricingSlabs());
         }
         
+        // Update form fields
+        if (request.getFormFields() != null) {
+            updateFormFields(request.getFormFields());
+        }
+        
         CustomConfigDto dto = toConfigDto(config);
         dto.setFormFields(getAllFormFields());
         if (config.getId() != null) {
@@ -135,6 +140,24 @@ public class CustomConfigService {
             dto.setPricingSlabs(getAllPricingSlabs(config.getId()));
         }
         return dto;
+    }
+    
+    @Transactional
+    private void updateFormFields(List<CustomConfigRequest.FormFieldRequest> formFieldRequests) {
+        // Delete all existing fields first
+        formFieldRepository.deleteAll();
+        
+        // Create new fields from request
+        for (int i = 0; i < formFieldRequests.size(); i++) {
+            CustomConfigRequest.FormFieldRequest fieldRequest = formFieldRequests.get(i);
+            CustomFormField field = new CustomFormField();
+            mapFormFieldRequest(fieldRequest, field);
+            // Set display order if not provided
+            if (field.getDisplayOrder() == null) {
+                field.setDisplayOrder(i);
+            }
+            formFieldRepository.save(field);
+        }
     }
     
     @Transactional

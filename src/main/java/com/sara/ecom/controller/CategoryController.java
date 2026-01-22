@@ -2,6 +2,7 @@ package com.sara.ecom.controller;
 
 import com.sara.ecom.dto.CategoryDto;
 import com.sara.ecom.service.CategoryService;
+import com.sara.ecom.service.JwtService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,20 +19,40 @@ import java.util.Map;
 public class CategoryController {
     
     private final CategoryService categoryService;
+    private final JwtService jwtService;
+    
+    /**
+     * Helper method to check if request is from admin
+     */
+    private boolean isAdminRequest(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                String token = authHeader.substring(7);
+                return jwtService.isAdminToken(token);
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        // Also check if path is admin endpoint
+        return request.getRequestURI().startsWith("/api/admin/");
+    }
     
     @GetMapping
     public ResponseEntity<List<CategoryDto>> getAllCategories(
             @RequestParam(required = false) Boolean active,
             @RequestParam(required = false) String userEmail,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest request) {
         // Use provided userEmail or get from authentication
         String email = userEmail != null ? userEmail : (authentication != null ? authentication.getName() : null);
+        boolean isAdmin = isAdminRequest(request);
         
         List<CategoryDto> categories;
         if (active != null && active) {
-            categories = categoryService.getActiveCategories(email);
+            categories = categoryService.getActiveCategories(email, isAdmin);
         } else {
-            categories = categoryService.getAllCategories(email);
+            categories = categoryService.getAllCategories(email, isAdmin);
         }
         return ResponseEntity.ok(categories);
     }
@@ -94,7 +115,10 @@ public class CategoryController {
     // This must be last to catch all slug paths like "men/shirts/formal-shirts"
     // Using a catch-all pattern that works with Spring Boot
     @GetMapping(value = "/**")
-    public ResponseEntity<CategoryDto> getCategoryBySlugPath(HttpServletRequest request) {
+    public ResponseEntity<CategoryDto> getCategoryBySlugPath(
+            HttpServletRequest request,
+            @RequestParam(required = false) String userEmail,
+            Authentication authentication) {
         // Extract the path after /api/categories/
         String requestPath = request.getRequestURI();
         String slugPath = requestPath.replaceFirst("^/api/categories/?", "");
@@ -106,7 +130,11 @@ public class CategoryController {
             return ResponseEntity.badRequest().build();
         }
         
-        CategoryDto category = categoryService.getCategoryBySlugPath(slugPath);
+        // Use provided userEmail or get from authentication
+        String email = userEmail != null ? userEmail : (authentication != null ? authentication.getName() : null);
+        boolean isAdmin = isAdminRequest(request);
+        
+        CategoryDto category = categoryService.getCategoryBySlugPath(slugPath, email, isAdmin);
         return ResponseEntity.ok(category);
     }
 }

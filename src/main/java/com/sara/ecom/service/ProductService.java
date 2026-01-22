@@ -65,13 +65,21 @@ public class ProductService {
      * This ensures CustomProducts never appear in public product listings.
      */
     public List<ProductDto> getAllProducts(String status, String type, Long categoryId) {
-        return getAllProducts(status, type, categoryId, null);
+        return getAllProducts(status, type, categoryId, null, false);
     }
     
     /**
      * Get all products matching the given filters, filtered by user email for category accessibility.
      */
     public List<ProductDto> getAllProducts(String status, String type, Long categoryId, String userEmail) {
+        return getAllProducts(status, type, categoryId, userEmail, false);
+    }
+    
+    /**
+     * Get all products matching the given filters, filtered by user email for category accessibility.
+     * @param isAdmin If true, admin can see all products regardless of restrictions
+     */
+    public List<ProductDto> getAllProducts(String status, String type, Long categoryId, String userEmail, boolean isAdmin) {
         List<Product> products;
         
         Product.Status statusEnum = status != null ? Product.Status.valueOf(status.toUpperCase()) : null;
@@ -98,9 +106,13 @@ public class ProductService {
         List<ProductDto> result = products.stream().map(this::toDto).collect(Collectors.toList());
         
         // Filter products by category accessibility (always filter, even if no userEmail - show only public)
-        result = result.stream()
-                .filter(p -> isProductAccessible(p.getId(), userEmail))
-                .collect(Collectors.toList());
+        // Admins can see all products regardless of restrictions
+        if (!isAdmin) {
+            result = result.stream()
+                    .filter(p -> isProductAccessible(p.getId(), userEmail, false))
+                    .collect(Collectors.toList());
+        }
+        // If isAdmin is true, return all products without filtering
         
         // If type is PLAIN and no categoryId specified, filter by fabric categories only
         // This ensures only fabric products appear in fabric selection
@@ -129,9 +141,22 @@ public class ProductService {
      * Checks if a product is accessible to a user based on its category's email restrictions.
      */
     public boolean isProductAccessible(Long productId, String userEmail) {
+        return isProductAccessible(productId, userEmail, false);
+    }
+    
+    /**
+     * Checks if a product is accessible to a user based on its category's email restrictions.
+     * @param isAdmin If true, admin can access all products regardless of restrictions
+     */
+    public boolean isProductAccessible(Long productId, String userEmail, boolean isAdmin) {
         Product product = productRepository.findById(productId).orElse(null);
         if (product == null) {
             return false;
+        }
+        
+        // Admins can always access all products
+        if (isAdmin) {
+            return true;
         }
         
         if (product.getCategoryId() == null) {
@@ -141,22 +166,27 @@ public class ProductService {
         
         // Check category accessibility
         Category category = categoryRepository.findById(product.getCategoryId()).orElse(null);
-        return categoryService.isCategoryAccessible(category, userEmail);
+        return categoryService.isCategoryAccessible(category, userEmail, false);
     }
     
     @Transactional(readOnly = true)
     public ProductDto getProductById(Long id) {
-        return getProductById(id, null);
+        return getProductById(id, null, false);
     }
     
     @Transactional(readOnly = true)
     public ProductDto getProductById(Long id, String userEmail) {
+        return getProductById(id, userEmail, false);
+    }
+    
+    @Transactional(readOnly = true)
+    public ProductDto getProductById(Long id, String userEmail, boolean isAdmin) {
         // Use separate queries to avoid MultipleBagFetchException
         Product product = productRepository.findByIdWithImages(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
         
-        // Check if product is accessible
-        if (!isProductAccessible(id, userEmail)) {
+        // Check if product is accessible (admins can access all)
+        if (!isProductAccessible(id, userEmail, isAdmin)) {
             throw new RuntimeException("Product is not accessible");
         }
         
@@ -177,9 +207,24 @@ public class ProductService {
     
     @Transactional(readOnly = true)
     public ProductDto getProductBySlug(String slug) {
+        return getProductBySlug(slug, null, false);
+    }
+    
+    @Transactional(readOnly = true)
+    public ProductDto getProductBySlug(String slug, String userEmail) {
+        return getProductBySlug(slug, userEmail, false);
+    }
+    
+    @Transactional(readOnly = true)
+    public ProductDto getProductBySlug(String slug, String userEmail, boolean isAdmin) {
         // Try to find by slug (any status first, then fallback to active only)
         Product product = productRepository.findBySlug(slug)
                 .orElseThrow(() -> new RuntimeException("Product not found with slug: " + slug));
+        
+        // Check if product is accessible (admins can access all)
+        if (!isProductAccessible(product.getId(), userEmail, isAdmin)) {
+            throw new RuntimeException("Product is not accessible");
+        }
         
         // Load images and detail sections separately
         productRepository.findByIdWithImages(product.getId()).ifPresent(p -> 
@@ -204,6 +249,23 @@ public class ProductService {
      * This allows fetching products from any category level (parent, child, grandchild, etc.)
      */
     public List<ProductDto> getProductsByCategoryWithChildren(Long categoryId) {
+        return getProductsByCategoryWithChildren(categoryId, null, false);
+    }
+    
+    /**
+     * Gets all active products for a category and all its child categories, filtered by user email.
+     * This allows fetching products from any category level (parent, child, grandchild, etc.)
+     */
+    public List<ProductDto> getProductsByCategoryWithChildren(Long categoryId, String userEmail) {
+        return getProductsByCategoryWithChildren(categoryId, userEmail, false);
+    }
+    
+    /**
+     * Gets all active products for a category and all its child categories, filtered by user email.
+     * This allows fetching products from any category level (parent, child, grandchild, etc.)
+     * @param isAdmin If true, admin can see all products regardless of restrictions
+     */
+    public List<ProductDto> getProductsByCategoryWithChildren(Long categoryId, String userEmail, boolean isAdmin) {
         // Get all category IDs including descendants
         List<Long> allCategoryIds = categoryService.getAllDescendantCategoryIds(categoryId);
         
@@ -211,7 +273,18 @@ public class ProductService {
         List<Product> products = productRepository.findByCategoryIdsAndStatus(
                 allCategoryIds, Product.Status.ACTIVE);
         
-        return products.stream().map(this::toDto).collect(Collectors.toList());
+        List<ProductDto> result = products.stream().map(this::toDto).collect(Collectors.toList());
+        
+        // Filter products by category accessibility (always filter, even if no userEmail - show only public)
+        // Admins can see all products regardless of restrictions
+        if (!isAdmin) {
+            result = result.stream()
+                    .filter(p -> isProductAccessible(p.getId(), userEmail, false))
+                    .collect(Collectors.toList());
+        }
+        // If isAdmin is true, return all products without filtering
+        
+        return result;
     }
     
     @Transactional
@@ -341,24 +414,53 @@ public class ProductService {
         if (config.getVariants() != null && !config.getVariants().isEmpty()) {
             product.getVariants().clear();
             for (CustomConfigDto.VariantDto configVariant : config.getVariants()) {
+                // Validate variant data
+                if (configVariant.getName() == null || configVariant.getName().trim().isEmpty()) {
+                    continue; // Skip invalid variants
+                }
+                
                 ProductVariant productVariant = new ProductVariant();
-                productVariant.setType(configVariant.getType());
+                productVariant.setType(configVariant.getType() != null ? configVariant.getType() : "text");
                 productVariant.setName(configVariant.getName());
                 productVariant.setUnit(configVariant.getUnit());
-                productVariant.setFrontendId(configVariant.getFrontendId());
+                // Ensure frontendId is set - use generated one if not provided
+                if (configVariant.getFrontendId() != null && !configVariant.getFrontendId().trim().isEmpty()) {
+                    productVariant.setFrontendId(configVariant.getFrontendId());
+                } else {
+                    // Generate frontendId from name if not provided
+                    String generatedFrontendId = generateFrontendId(configVariant.getName());
+                    productVariant.setFrontendId(generatedFrontendId);
+                }
                 product.addVariant(productVariant);
                 
                 // Copy options
-                if (configVariant.getOptions() != null) {
+                if (configVariant.getOptions() != null && !configVariant.getOptions().isEmpty()) {
                     for (CustomConfigDto.VariantOptionDto configOption : configVariant.getOptions()) {
+                        // Validate option data
+                        if (configOption.getValue() == null || configOption.getValue().trim().isEmpty()) {
+                            continue; // Skip invalid options
+                        }
+                        
                         ProductVariantOption productOption = new ProductVariantOption();
                         productOption.setValue(configOption.getValue());
-                        productOption.setFrontendId(configOption.getFrontendId());
+                        // Ensure frontendId is set - use generated one if not provided
+                        if (configOption.getFrontendId() != null && !configOption.getFrontendId().trim().isEmpty()) {
+                            productOption.setFrontendId(configOption.getFrontendId());
+                        } else {
+                            // Generate frontendId from value if not provided
+                            String generatedOptionFrontendId = generateFrontendId(configOption.getValue());
+                            productOption.setFrontendId(generatedOptionFrontendId);
+                        }
                         productOption.setPriceModifier(configOption.getPriceModifier() != null ? 
                             configOption.getPriceModifier() : BigDecimal.ZERO);
                         productVariant.addOption(productOption);
                     }
                 }
+            }
+            
+            // Validation: Ensure at least one variant was copied
+            if (product.getVariants().isEmpty()) {
+                throw new RuntimeException("Failed to copy variants from blueprint. No valid variants found.");
             }
         }
         
@@ -604,6 +706,20 @@ public class ProductService {
                 .replaceAll("\\s+", "-")
                 .replaceAll("-+", "-")
                 .replaceAll("^-|-$", "");
+    }
+    
+    /**
+     * Generates a frontendId from a name/value string.
+     * Used when frontendId is not provided in blueprint or admin form.
+     */
+    private String generateFrontendId(String name) {
+        if (name == null) return "";
+        return name.toLowerCase()
+                .trim()
+                .replaceAll("[^a-z0-9\\s-]", "") // Remove special characters
+                .replaceAll("\\s+", "-") // Replace spaces with hyphens
+                .replaceAll("-+", "-") // Replace multiple hyphens with single
+                .replaceAll("^-|-$", ""); // Remove leading/trailing hyphens
     }
     
     @Transactional
@@ -983,14 +1099,34 @@ public class ProductService {
             for (ProductRequest.VariantRequest variantReq : request.getVariants()) {
                 ProductVariant variant = new ProductVariant();
                 variant.setName(variantReq.getName());
-                variant.setType(variantReq.getType());
+                variant.setType(variantReq.getType() != null ? variantReq.getType() : "text");
                 variant.setUnit(variantReq.getUnit());
+                
+                // Set frontendId from request if provided, otherwise generate it
+                if (variantReq.getFrontendId() != null && !variantReq.getFrontendId().trim().isEmpty()) {
+                    variant.setFrontendId(variantReq.getFrontendId());
+                } else {
+                    // Generate frontendId from name if not provided
+                    String generatedFrontendId = generateFrontendId(variantReq.getName());
+                    variant.setFrontendId(generatedFrontendId);
+                }
                 
                 if (variantReq.getOptions() != null) {
                     for (ProductRequest.VariantOptionRequest optionReq : variantReq.getOptions()) {
                         ProductVariantOption option = new ProductVariantOption();
                         option.setValue(optionReq.getValue());
-                        option.setPriceModifier(optionReq.getPriceModifier());
+                        option.setPriceModifier(optionReq.getPriceModifier() != null ? 
+                            optionReq.getPriceModifier() : BigDecimal.ZERO);
+                        
+                        // Set frontendId from request if provided, otherwise generate it
+                        if (optionReq.getFrontendId() != null && !optionReq.getFrontendId().trim().isEmpty()) {
+                            option.setFrontendId(optionReq.getFrontendId());
+                        } else {
+                            // Generate frontendId from value if not provided
+                            String generatedOptionFrontendId = generateFrontendId(optionReq.getValue());
+                            option.setFrontendId(generatedOptionFrontendId);
+                        }
+                        
                         variant.addOption(option);
                     }
                 }

@@ -145,6 +145,7 @@ public class ProductRequest {
         private String name;
         private String type;
         private String unit;
+        private String frontendId; // For blueprint consistency
         private List<VariantOptionRequest> options;
 
         public String getName() {
@@ -178,11 +179,20 @@ public class ProductRequest {
         public void setOptions(List<VariantOptionRequest> options) {
             this.options = options;
         }
+        
+        public String getFrontendId() {
+            return frontendId;
+        }
+        
+        public void setFrontendId(String frontendId) {
+            this.frontendId = frontendId;
+        }
     }
 
     public static class VariantOptionRequest {
         private String value;
         private BigDecimal priceModifier;
+        private String frontendId; // For blueprint consistency
 
         public String getValue() {
             return value;
@@ -198,6 +208,14 @@ public class ProductRequest {
 
         public void setPriceModifier(BigDecimal priceModifier) {
             this.priceModifier = priceModifier;
+        }
+        
+        public String getFrontendId() {
+            return frontendId;
+        }
+        
+        public void setFrontendId(String frontendId) {
+            this.frontendId = frontendId;
         }
     }
     

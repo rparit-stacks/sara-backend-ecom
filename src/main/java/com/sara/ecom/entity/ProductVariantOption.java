@@ -24,6 +24,9 @@ public class ProductVariantOption {
     @Column(name = "price_modifier", precision = 10, scale = 2)
     private BigDecimal priceModifier = BigDecimal.ZERO;
     
+    @Column(name = "display_order")
+    private Integer displayOrder = 0;
+    
     // Getters and Setters
     public Long getId() {
         return id;
@@ -63,5 +66,13 @@ public class ProductVariantOption {
     
     public void setPriceModifier(BigDecimal priceModifier) {
         this.priceModifier = priceModifier;
+    }
+    
+    public Integer getDisplayOrder() {
+        return displayOrder;
+    }
+    
+    public void setDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder != null ? displayOrder : 0;
     }
 }

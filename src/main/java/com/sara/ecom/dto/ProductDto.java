@@ -165,6 +165,7 @@ public class ProductDto {
         private String name;
         private String type;
         private String unit;
+        private Integer displayOrder;
         private List<VariantOptionDto> options;
 
         public Long getId() {
@@ -199,6 +200,14 @@ public class ProductDto {
             this.unit = unit;
         }
 
+        public Integer getDisplayOrder() {
+            return displayOrder;
+        }
+
+        public void setDisplayOrder(Integer displayOrder) {
+            this.displayOrder = displayOrder;
+        }
+
         public List<VariantOptionDto> getOptions() {
             return options;
         }
@@ -212,6 +221,7 @@ public class ProductDto {
         private Long id;
         private String value;
         private BigDecimal priceModifier;
+        private Integer displayOrder;
 
         public Long getId() {
             return id;
@@ -235,6 +245,14 @@ public class ProductDto {
 
         public void setPriceModifier(BigDecimal priceModifier) {
             this.priceModifier = priceModifier;
+        }
+        
+        public Integer getDisplayOrder() {
+            return displayOrder;
+        }
+        
+        public void setDisplayOrder(Integer displayOrder) {
+            this.displayOrder = displayOrder;
         }
     }
     

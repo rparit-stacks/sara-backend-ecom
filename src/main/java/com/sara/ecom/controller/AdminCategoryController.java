@@ -43,19 +43,45 @@ public class AdminCategoryController {
     }
     
     @PostMapping("/upload-image")
-    public ResponseEntity<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<Map<String, Object>> uploadImage(@RequestParam("file") MultipartFile file) {
         try {
             System.out.println("[Category Image Upload] Received file: " + file.getOriginalFilename() + ", size: " + file.getSize());
             String imageUrl = cloudinaryService.uploadImage(file, "categories");
             System.out.println("[Category Image Upload] Uploaded to Cloudinary: " + imageUrl);
-            Map<String, String> response = new HashMap<>();
+            Map<String, Object> response = new HashMap<>();
             response.put("url", imageUrl);
             return ResponseEntity.ok(response);
+        } catch (java.io.IOException e) {
+            System.err.println("[Category Image Upload] Error: " + e.getMessage());
+            e.printStackTrace();
+            Map<String, Object> error = new HashMap<>();
+            
+            String errorMessage = e.getMessage();
+            String source = "system";
+            
+            if (errorMessage != null) {
+                if (errorMessage.contains("File size exceeds")) {
+                    source = "validation";
+                } else if (errorMessage.contains("Cloudinary error")) {
+                    source = "cloudinary";
+                }
+            }
+            
+            error.put("error", errorMessage != null ? errorMessage : "Failed to upload image");
+            error.put("source", source);
+            error.put("details", e.getCause() != null ? e.getCause().getMessage() : null);
+            error.put("fileSize", file.getSize());
+            error.put("maxSize", 10 * 1024 * 1024L); // 10MB
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         } catch (Exception e) {
             System.err.println("[Category Image Upload] Error: " + e.getMessage());
             e.printStackTrace();
-            Map<String, String> error = new HashMap<>();
+            Map<String, Object> error = new HashMap<>();
             error.put("error", "Failed to upload image: " + e.getMessage());
+            error.put("source", "system");
+            error.put("fileSize", file.getSize());
+            error.put("maxSize", 10 * 1024 * 1024L);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }

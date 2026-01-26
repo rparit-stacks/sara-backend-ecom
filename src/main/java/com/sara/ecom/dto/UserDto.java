@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -23,13 +24,15 @@ public class UserDto {
     private String zipCode;
     private String country;
     private User.AuthProvider authProvider;
+    private String oauthProviderId;
     private Boolean emailVerified;
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private List<UserAddressDto> addresses;
     
     public static UserDto fromEntity(User user) {
-        return UserDto.builder()
+        UserDto.UserDtoBuilder builder = UserDto.builder()
                 .email(user.getEmail())
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
@@ -40,10 +43,21 @@ public class UserDto {
                 .zipCode(user.getZipCode())
                 .country(user.getCountry())
                 .authProvider(user.getAuthProvider())
+                .oauthProviderId(user.getOauthProviderId())
                 .emailVerified(user.getEmailVerified())
                 .status(user.getStatus() != null ? user.getStatus().name() : "ACTIVE")
                 .createdAt(user.getCreatedAt())
-                .updatedAt(user.getUpdatedAt())
-                .build();
+                .updatedAt(user.getUpdatedAt());
+        
+        // Include addresses if available
+        if (user.getAddresses() != null && !user.getAddresses().isEmpty()) {
+            builder.addresses(user.getAddresses().stream()
+                    .map(UserAddressDto::fromEntity)
+                    .collect(java.util.stream.Collectors.toList()));
+        } else {
+            builder.addresses(java.util.Collections.emptyList());
+        }
+        
+        return builder.build();
     }
 }

@@ -46,27 +46,27 @@ public class ProductRequest {
         private String title;
         private String content;
         private Integer displayOrder;
-        
+
         public String getTitle() {
             return title;
         }
-        
+
         public void setTitle(String title) {
             this.title = title;
         }
-        
+
         public String getContent() {
             return content;
         }
-        
+
         public void setContent(String content) {
             this.content = content;
         }
-        
+
         public Integer getDisplayOrder() {
             return displayOrder;
         }
-        
+
         public void setDisplayOrder(Integer displayOrder) {
             this.displayOrder = displayOrder;
         }
@@ -76,27 +76,27 @@ public class ProductRequest {
         private String url;
         private String type; // "image" or "video"
         private Integer displayOrder;
-        
+
         public String getUrl() {
             return url;
         }
-        
+
         public void setUrl(String url) {
             this.url = url;
         }
-        
+
         public String getType() {
             return type;
         }
-        
+
         public void setType(String type) {
             this.type = type;
         }
-        
+
         public Integer getDisplayOrder() {
             return displayOrder;
         }
-        
+
         public void setDisplayOrder(Integer displayOrder) {
             this.displayOrder = displayOrder;
         }
@@ -146,6 +146,7 @@ public class ProductRequest {
         private String type;
         private String unit;
         private String frontendId; // For blueprint consistency
+        private Integer displayOrder;
         private List<VariantOptionRequest> options;
 
         public String getName() {
@@ -179,13 +180,21 @@ public class ProductRequest {
         public void setOptions(List<VariantOptionRequest> options) {
             this.options = options;
         }
-        
+
         public String getFrontendId() {
             return frontendId;
         }
-        
+
         public void setFrontendId(String frontendId) {
             this.frontendId = frontendId;
+        }
+
+        public Integer getDisplayOrder() {
+            return displayOrder;
+        }
+
+        public void setDisplayOrder(Integer displayOrder) {
+            this.displayOrder = displayOrder;
         }
     }
 
@@ -193,6 +202,7 @@ public class ProductRequest {
         private String value;
         private BigDecimal priceModifier;
         private String frontendId; // For blueprint consistency
+        private Integer displayOrder;
 
         public String getValue() {
             return value;
@@ -209,69 +219,77 @@ public class ProductRequest {
         public void setPriceModifier(BigDecimal priceModifier) {
             this.priceModifier = priceModifier;
         }
-        
+
         public String getFrontendId() {
             return frontendId;
         }
-        
+
         public void setFrontendId(String frontendId) {
             this.frontendId = frontendId;
         }
+
+        public Integer getDisplayOrder() {
+            return displayOrder;
+        }
+
+        public void setDisplayOrder(Integer displayOrder) {
+            this.displayOrder = displayOrder;
+        }
     }
-    
+
     // Getters and Setters
     public String getName() {
         return name;
     }
-    
+
     public void setName(String name) {
         this.name = name;
     }
-    
+
     public String getType() {
         return type;
     }
-    
+
     public void setType(String type) {
         this.type = type;
     }
-    
+
     public Long getCategoryId() {
         return categoryId;
     }
-    
+
     public void setCategoryId(Long categoryId) {
         this.categoryId = categoryId;
     }
-    
+
     public String getDescription() {
         return description;
     }
-    
+
     public void setDescription(String description) {
         this.description = description;
     }
-    
+
     public String getStatus() {
         return status;
     }
-    
+
     public void setStatus(String status) {
         this.status = status;
     }
-    
+
     public List<String> getImages() {
         return images;
     }
-    
+
     public void setImages(List<String> images) {
         this.images = images;
     }
-    
+
     public List<DetailSectionRequest> getDetailSections() {
         return detailSections;
     }
-    
+
     public void setDetailSections(List<DetailSectionRequest> detailSections) {
         this.detailSections = detailSections;
     }
@@ -291,51 +309,51 @@ public class ProductRequest {
     public void setVariants(List<VariantRequest> variants) {
         this.variants = variants;
     }
-    
+
     public BigDecimal getDesignPrice() {
         return designPrice;
     }
-    
+
     public void setDesignPrice(BigDecimal designPrice) {
         this.designPrice = designPrice;
     }
-    
+
     public Long getDesignId() {
         return designId;
     }
-    
+
     public void setDesignId(Long designId) {
         this.designId = designId;
     }
-    
+
     public List<MediaRequest> getMedia() {
         return media;
     }
-    
+
     public void setMedia(List<MediaRequest> media) {
         this.media = media;
     }
-    
+
     public List<Long> getRecommendedFabricIds() {
         return recommendedFabricIds;
     }
-    
+
     public void setRecommendedFabricIds(List<Long> recommendedFabricIds) {
         this.recommendedFabricIds = recommendedFabricIds;
     }
-    
+
     public Long getPlainProductId() {
         return plainProductId;
     }
-    
+
     public void setPlainProductId(Long plainProductId) {
         this.plainProductId = plainProductId;
     }
-    
+
     public BigDecimal getPrice() {
         return price;
     }
-    
+
     public void setPrice(BigDecimal price) {
         this.price = price;
     }
@@ -347,31 +365,31 @@ public class ProductRequest {
     public void setPricePerMeter(BigDecimal pricePerMeter) {
         this.pricePerMeter = pricePerMeter;
     }
-    
+
     public String getFileUrl() {
         return fileUrl;
     }
-    
+
     public void setFileUrl(String fileUrl) {
         this.fileUrl = fileUrl;
     }
-    
+
     public Boolean getIsNew() {
         return isNew;
     }
-    
+
     public void setIsNew(Boolean isNew) {
         this.isNew = isNew;
     }
-    
+
     public Boolean getIsSale() {
         return isSale;
     }
-    
+
     public void setIsSale(Boolean isSale) {
         this.isSale = isSale;
     }
-    
+
     public BigDecimal getOriginalPrice() {
         return originalPrice;
     }
@@ -399,35 +417,35 @@ public class ProductRequest {
     public void setGstRate(BigDecimal gstRate) {
         this.gstRate = gstRate;
     }
-    
+
     public String getHsnCode() {
         return hsnCode;
     }
-    
+
     public void setHsnCode(String hsnCode) {
         this.hsnCode = hsnCode;
     }
-    
+
     public String getUserEmail() {
         return userEmail;
     }
-    
+
     public void setUserEmail(String userEmail) {
         this.userEmail = userEmail;
     }
-    
+
     public List<String> getMockupUrls() {
         return mockupUrls;
     }
-    
+
     public void setMockupUrls(List<String> mockupUrls) {
         this.mockupUrls = mockupUrls;
     }
-    
+
     public List<PricingSlabRequest> getPricingSlabs() {
         return pricingSlabs;
     }
-    
+
     public void setPricingSlabs(List<PricingSlabRequest> pricingSlabs) {
         this.pricingSlabs = pricingSlabs;
     }
@@ -435,7 +453,7 @@ public class ProductRequest {
     public void setOriginalPrice(BigDecimal originalPrice) {
         this.originalPrice = originalPrice;
     }
-    
+
     // Pricing Slab Request inner class
     public static class PricingSlabRequest {
         private Integer minQuantity;
@@ -443,55 +461,55 @@ public class ProductRequest {
         private String discountType; // "FIXED_AMOUNT" or "PERCENTAGE"
         private BigDecimal discountValue; // Discount amount (₹X for FIXED_AMOUNT, X% for PERCENTAGE)
         private Integer displayOrder;
-        
+
         // Legacy field - kept for backward compatibility
         private BigDecimal pricePerMeter;
-        
+
         public Integer getMinQuantity() {
             return minQuantity;
         }
-        
+
         public void setMinQuantity(Integer minQuantity) {
             this.minQuantity = minQuantity;
         }
-        
+
         public Integer getMaxQuantity() {
             return maxQuantity;
         }
-        
+
         public void setMaxQuantity(Integer maxQuantity) {
             this.maxQuantity = maxQuantity;
         }
-        
+
         public String getDiscountType() {
             return discountType;
         }
-        
+
         public void setDiscountType(String discountType) {
             this.discountType = discountType;
         }
-        
+
         public BigDecimal getDiscountValue() {
             return discountValue;
         }
-        
+
         public void setDiscountValue(BigDecimal discountValue) {
             this.discountValue = discountValue;
         }
-        
+
         public Integer getDisplayOrder() {
             return displayOrder;
         }
-        
+
         public void setDisplayOrder(Integer displayOrder) {
             this.displayOrder = displayOrder;
         }
-        
+
         // Legacy getter/setter - kept for backward compatibility
         public BigDecimal getPricePerMeter() {
             return pricePerMeter;
         }
-        
+
         public void setPricePerMeter(BigDecimal pricePerMeter) {
             this.pricePerMeter = pricePerMeter;
         }

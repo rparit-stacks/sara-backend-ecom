@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Invitation</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #2b9d8f;">
+                <h1 style="color: #ffffff; margin: 0;">[[${appName}]]</h1>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 40px 20px; background-color: #ffffff; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333333; margin-top: 0;">Admin Account Invitation</h2>
+                <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                    Hello,
+                </p>
+                <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                    You have been invited by <strong>[[${invitedBy}]]</strong> to join the [[${appName}]] Admin Panel.
+                </p>
+                
+                <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
+                    <p style="margin: 0; color: #1976d2; font-weight: bold;">📧 Email: [[${recipientEmail}]]</p>
+                    <p style="margin: 5px 0 0 0; color: #666666;">Click the button below to create your admin account.</p>
+                </div>
+                
+                <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                    This invitation link will expire in 7 days. Please create your account before it expires.
+                </p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a th:href="${inviteUrl}" style="display: inline-block; padding: 14px 40px; background-color: #2b9d8f; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">Accept Invitation & Create Account</a>
+                </div>
+                
+                <p style="color: #999999; font-size: 14px; line-height: 1.6; margin-top: 30px;">
+                    If the button doesn't work, copy and paste this link into your browser:<br>
+                    <a th:href="${inviteUrl}" style="color: #2b9d8f; word-break: break-all;">[[${inviteUrl}]]</a>
+                </p>
+                
+                <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                    <p style="margin: 0; color: #856404; font-size: 14px;">
+                        <strong>Security Note:</strong> This invitation is intended only for you. If you did not expect this invitation, please ignore this email.
+                    </p>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 20px; text-align: center; background-color: #f4f4f4; color: #666666; font-size: 12px;">
+                <p style="margin: 5px 0;">© [[${currentYear}]] [[${appName}]]. All rights reserved.</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

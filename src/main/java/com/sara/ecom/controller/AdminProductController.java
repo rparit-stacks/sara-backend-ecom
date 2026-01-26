@@ -46,6 +46,27 @@ public class AdminProductController {
                     uploadedFiles.add(fileInfo);
                     
                     System.out.println("[Product Media Upload] Success: " + url);
+                } catch (java.io.IOException e) {
+                    System.err.println("[Product Media Upload] Error uploading " + file.getOriginalFilename() + ": " + e.getMessage());
+                    String errorMessage = e.getMessage();
+                    String source = "system";
+                    
+                    if (errorMessage != null) {
+                        if (errorMessage.contains("File size exceeds")) {
+                            source = "validation";
+                        } else if (errorMessage.contains("Cloudinary error")) {
+                            source = "cloudinary";
+                        }
+                    }
+                    
+                    Map<String, Object> errorDetail = new HashMap<>();
+                    errorDetail.put("filename", file.getOriginalFilename());
+                    errorDetail.put("error", errorMessage != null ? errorMessage : "Failed to upload file");
+                    errorDetail.put("source", source);
+                    errorDetail.put("fileSize", file.getSize());
+                    errorDetail.put("maxSize", 10 * 1024 * 1024L);
+                    
+                    errors.add(errorDetail.toString());
                 } catch (Exception e) {
                     System.err.println("[Product Media Upload] Error uploading " + file.getOriginalFilename() + ": " + e.getMessage());
                     errors.add("Failed to upload " + file.getOriginalFilename() + ": " + e.getMessage());

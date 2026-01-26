@@ -177,8 +177,8 @@ public class CMSService {
         testimonial.setLocation(request.getLocation());
         testimonial.setIsActive(false); // Admin needs to approve
         
-        link.setIsUsed(true);
-        testimonialLinkRepository.save(link);
+        // Delete the link instead of marking it as used
+        testimonialLinkRepository.delete(link);
         
         return toTestimonialDto(testimonialRepository.save(testimonial));
     }

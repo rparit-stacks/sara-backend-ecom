@@ -1,6 +1,8 @@
 package com.sara.ecom.config;
 
 import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
+import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -26,5 +28,16 @@ public class WebConfig implements WebMvcConfigurer {
         return builder
                 .requestFactory(() -> factory)
                 .build();
+    }
+    
+    // Configure Tomcat to allow 10MB file uploads
+    @Bean
+    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> tomcatCustomizer() {
+        return factory -> {
+            factory.addConnectorCustomizers(connector -> {
+                connector.setMaxPostSize(10 * 1024 * 1024); // 10MB in bytes
+                // maxSwallowSize is configured via application.properties (server.tomcat.max-swallow-size)
+            });
+        };
     }
 }

@@ -27,6 +27,11 @@ public class AdminUserController {
         return ResponseEntity.ok(users);
     }
     
+    @GetMapping("/{email}")
+    public ResponseEntity<UserDto> getUserByEmail(@PathVariable String email) {
+        return ResponseEntity.ok(userService.getUserByEmail(email));
+    }
+    
     @PutMapping("/{email}/status")
     public ResponseEntity<UserDto> updateUserStatus(
             @PathVariable String email,

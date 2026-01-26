@@ -10,6 +10,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -64,6 +65,18 @@ public class GlobalExceptionHandler {
             error.put("error", message != null ? message : "An error occurred while processing your request.");
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+    
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
+        logger.error("File upload size exceeded", ex);
+        Map<String, Object> error = new HashMap<>();
+        error.put("error", "File size exceeds the maximum allowed limit of 10MB");
+        error.put("errorCode", "FILE_SIZE_EXCEEDED");
+        error.put("source", "validation");
+        error.put("maxSize", "10MB");
+        error.put("details", "Please upload a file smaller than 10MB");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(error);
     }
     
     @ExceptionHandler(MethodArgumentNotValidException.class)

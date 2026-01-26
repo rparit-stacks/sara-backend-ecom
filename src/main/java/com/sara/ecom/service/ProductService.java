@@ -1101,6 +1101,7 @@ public class ProductService {
                 variant.setName(variantReq.getName());
                 variant.setType(variantReq.getType() != null ? variantReq.getType() : "text");
                 variant.setUnit(variantReq.getUnit());
+                variant.setDisplayOrder(variantReq.getDisplayOrder() != null ? variantReq.getDisplayOrder() : 0);
                 
                 // Set frontendId from request if provided, otherwise generate it
                 if (variantReq.getFrontendId() != null && !variantReq.getFrontendId().trim().isEmpty()) {
@@ -1112,11 +1113,13 @@ public class ProductService {
                 }
                 
                 if (variantReq.getOptions() != null) {
+                    int optionIndex = 0;
                     for (ProductRequest.VariantOptionRequest optionReq : variantReq.getOptions()) {
                         ProductVariantOption option = new ProductVariantOption();
                         option.setValue(optionReq.getValue());
                         option.setPriceModifier(optionReq.getPriceModifier() != null ? 
                             optionReq.getPriceModifier() : BigDecimal.ZERO);
+                        option.setDisplayOrder(optionReq.getDisplayOrder() != null ? optionReq.getDisplayOrder() : optionIndex);
                         
                         // Set frontendId from request if provided, otherwise generate it
                         if (optionReq.getFrontendId() != null && !optionReq.getFrontendId().trim().isEmpty()) {
@@ -1128,6 +1131,7 @@ public class ProductService {
                         }
                         
                         variant.addOption(option);
+                        optionIndex++;
                     }
                 }
                 product.addVariant(variant);
@@ -1255,6 +1259,7 @@ public class ProductService {
                         variantDto.setName(variant.getName());
                         variantDto.setType(variant.getType());
                         variantDto.setUnit(variant.getUnit());
+                        variantDto.setDisplayOrder(variant.getDisplayOrder() != null ? variant.getDisplayOrder() : 0);
                         
                         if (variant.getOptions() != null) {
                             variantDto.setOptions(variant.getOptions().stream()
@@ -1263,6 +1268,7 @@ public class ProductService {
                                         optionDto.setId(option.getId());
                                         optionDto.setValue(option.getValue());
                                         optionDto.setPriceModifier(option.getPriceModifier());
+                                        optionDto.setDisplayOrder(option.getDisplayOrder() != null ? option.getDisplayOrder() : 0);
                                         return optionDto;
                                     })
                                     .collect(Collectors.toList()));

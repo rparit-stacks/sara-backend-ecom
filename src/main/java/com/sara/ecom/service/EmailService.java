@@ -87,6 +87,15 @@ public class EmailService {
         }
     }
     
+    // Admin invite email
+    public void sendAdminInviteEmail(String toEmail, String inviteUrl, String invitedBy) {
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("inviteUrl", inviteUrl);
+        variables.put("invitedBy", invitedBy);
+        variables.put("recipientEmail", toEmail);
+        sendHtmlEmail(toEmail, "Admin Account Invitation - " + appName, "admin-invite", variables);
+    }
+    
     // Order emails
     public void sendOrderPlacedEmail(EmailTemplateData.OrderEmailData data) {
         Map<String, Object> variables = new HashMap<>();

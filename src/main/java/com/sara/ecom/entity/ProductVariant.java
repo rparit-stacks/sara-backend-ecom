@@ -29,8 +29,12 @@ public class ProductVariant {
     @Column(name = "frontend_id")
     private String frontendId; // To link with combinations
     
+    @Column(name = "display_order")
+    private Integer displayOrder = 0;
+    
     @OneToMany(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
     @Fetch(FetchMode.SUBSELECT)
+    @OrderBy("displayOrder ASC")
     private List<ProductVariantOption> options = new ArrayList<>();
     
     // Getters and Setters
@@ -80,6 +84,14 @@ public class ProductVariant {
 
     public void setFrontendId(String frontendId) {
         this.frontendId = frontendId;
+    }
+    
+    public Integer getDisplayOrder() {
+        return displayOrder;
+    }
+    
+    public void setDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder != null ? displayOrder : 0;
     }
     
     public List<ProductVariantOption> getOptions() {

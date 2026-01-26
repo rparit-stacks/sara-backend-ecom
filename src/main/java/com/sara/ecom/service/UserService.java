@@ -64,14 +64,38 @@ public class UserService {
     // Admin methods
     public List<UserDto> getAllUsers() {
         return userRepository.findAllByOrderByCreatedAtDesc().stream()
-                .map(UserDto::fromEntity)
+                .map(user -> {
+                    // Trigger lazy loading of addresses
+                    if (user.getAddresses() != null) {
+                        user.getAddresses().size();
+                    }
+                    return UserDto.fromEntity(user);
+                })
                 .collect(Collectors.toList());
+    }
+    
+    public UserDto getUserByEmail(String email) {
+        // Normalize email to lowercase
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : null;
+        User user = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        // Trigger lazy loading of addresses
+        if (user.getAddresses() != null) {
+            user.getAddresses().size();
+        }
+        return UserDto.fromEntity(user);
     }
     
     public List<UserDto> getUsersByStatus(String status) {
         User.UserStatus userStatus = User.UserStatus.valueOf(status.toUpperCase());
         return userRepository.findByStatusOrderByCreatedAtDesc(userStatus).stream()
-                .map(UserDto::fromEntity)
+                .map(user -> {
+                    // Trigger lazy loading of addresses
+                    if (user.getAddresses() != null) {
+                        user.getAddresses().size();
+                    }
+                    return UserDto.fromEntity(user);
+                })
                 .collect(Collectors.toList());
     }
     

@@ -8,11 +8,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class CloudinaryService {
+    
+    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     
     private final Cloudinary cloudinary;
     
@@ -30,8 +33,20 @@ public class CloudinaryService {
         }
     }
     
+    private void validateFileSize(MultipartFile file) throws IOException {
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new IOException(String.format(
+                "File size exceeds maximum allowed size of %d MB. File size: %.2f MB",
+                MAX_FILE_SIZE / (1024 * 1024),
+                file.getSize() / (1024.0 * 1024.0)
+            ));
+        }
+    }
+    
     @SuppressWarnings("unchecked")
     public String uploadImage(MultipartFile file, String folder) throws IOException {
+        validateFileSize(file);
+        
         Map<String, Object> params = ObjectUtils.asMap(
             "folder", folder != null ? folder : "categories",
             "resource_type", "image",
@@ -41,20 +56,43 @@ public class CloudinaryService {
             "crop", "limit"
         );
         
-        Map<String, Object> uploadResult = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(), params);
-        return (String) uploadResult.get("secure_url");
+        try {
+            Map<String, Object> uploadResult = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(), params);
+            return (String) uploadResult.get("secure_url");
+        } catch (Exception e) {
+            // Check if it's a Cloudinary-specific error
+            String errorMessage = e.getMessage();
+            if (errorMessage != null && (errorMessage.contains("cloudinary") || 
+                                         errorMessage.contains("Cloudinary") ||
+                                         e.getClass().getName().contains("cloudinary"))) {
+                throw new IOException("Cloudinary error: " + errorMessage, e);
+            }
+            throw new IOException("Upload failed: " + errorMessage, e);
+        }
     }
     
     @SuppressWarnings("unchecked")
     public String uploadVideo(MultipartFile file, String folder) throws IOException {
+        validateFileSize(file);
+        
         Map<String, Object> params = ObjectUtils.asMap(
             "folder", folder != null ? folder : "products/videos",
             "resource_type", "video",
             "overwrite", true
         );
         
-        Map<String, Object> uploadResult = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(), params);
-        return (String) uploadResult.get("secure_url");
+        try {
+            Map<String, Object> uploadResult = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(), params);
+            return (String) uploadResult.get("secure_url");
+        } catch (Exception e) {
+            String errorMessage = e.getMessage();
+            if (errorMessage != null && (errorMessage.contains("cloudinary") || 
+                                         errorMessage.contains("Cloudinary") ||
+                                         e.getClass().getName().contains("cloudinary"))) {
+                throw new IOException("Cloudinary error: " + errorMessage, e);
+            }
+            throw new IOException("Upload failed: " + errorMessage, e);
+        }
     }
     
     @SuppressWarnings("unchecked")
@@ -93,6 +131,28 @@ public class CloudinaryService {
                 cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
             }
         }
+    }
+    
+    public Map<String, Object> deleteImages(List<String> imageUrls) {
+        Map<String, Object> result = new HashMap<>();
+        List<String> success = new ArrayList<>();
+        List<Map<String, Object>> failed = new ArrayList<>();
+        
+        for (String imageUrl : imageUrls) {
+            try {
+                deleteImage(imageUrl);
+                success.add(imageUrl);
+            } catch (Exception e) {
+                Map<String, Object> errorInfo = new HashMap<>();
+                errorInfo.put("url", imageUrl);
+                errorInfo.put("error", e.getMessage() != null ? e.getMessage() : "Failed to delete image");
+                failed.add(errorInfo);
+            }
+        }
+        
+        result.put("success", success);
+        result.put("failed", failed);
+        return result;
     }
     
     @SuppressWarnings("unchecked")
@@ -150,13 +210,26 @@ public class CloudinaryService {
     
     @SuppressWarnings("unchecked")
     public String uploadFile(MultipartFile file, String folder) throws IOException {
+        validateFileSize(file);
+        
         Map<String, Object> params = ObjectUtils.asMap(
             "folder", folder != null ? folder : "general_files",
             "resource_type", "auto", // Automatically detect resource type
             "overwrite", true
         );
-        Map<String, Object> uploadResult = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(), params);
-        return (String) uploadResult.get("secure_url");
+        
+        try {
+            Map<String, Object> uploadResult = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(), params);
+            return (String) uploadResult.get("secure_url");
+        } catch (Exception e) {
+            String errorMessage = e.getMessage();
+            if (errorMessage != null && (errorMessage.contains("cloudinary") || 
+                                         errorMessage.contains("Cloudinary") ||
+                                         e.getClass().getName().contains("cloudinary"))) {
+                throw new IOException("Cloudinary error: " + errorMessage, e);
+            }
+            throw new IOException("Upload failed: " + errorMessage, e);
+        }
     }
     
     private String extractPublicId(String url) {

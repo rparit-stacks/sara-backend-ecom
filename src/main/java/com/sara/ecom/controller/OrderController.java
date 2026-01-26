@@ -345,8 +345,10 @@ public class OrderController {
     private String getUserEmailFromToken(String authHeader) {
         String token = authHeader.replace("Bearer ", "");
         String email = jwtService.extractEmail(token);
-        userRepository.findByEmail(email)
+        // Normalize email to lowercase to match how it's stored in database
+        String normalizedEmail = email != null ? email.toLowerCase().trim() : email;
+        userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        return email;
+        return normalizedEmail;
     }
 }

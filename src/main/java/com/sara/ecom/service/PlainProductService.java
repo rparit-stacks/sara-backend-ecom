@@ -116,6 +116,7 @@ public class PlainProductService {
         product.setDescription(request.getDescription());
         product.setImage(request.getImage());
         product.setPricePerMeter(request.getPricePerMeter());
+        product.setUnitExtension(request.getUnitExtension() != null ? request.getUnitExtension() : "per meter");
         product.setCategoryId(request.getCategoryId());
         
         if (request.getStatus() != null) {
@@ -129,12 +130,15 @@ public class PlainProductService {
                 variant.setName(variantReq.getName());
                 
                 if (variantReq.getOptions() != null) {
+                    int optionIndex = 0;
                     for (PlainProductRequest.OptionRequest optionReq : variantReq.getOptions()) {
                         PlainProductVariantOption option = new PlainProductVariantOption();
                         option.setValue(optionReq.getValue());
                         option.setPriceModifier(optionReq.getPriceModifier() != null ? 
                                 optionReq.getPriceModifier() : BigDecimal.ZERO);
+                        option.setDisplayOrder(optionReq.getDisplayOrder() != null ? optionReq.getDisplayOrder() : optionIndex);
                         variant.addOption(option);
+                        optionIndex++;
                     }
                 }
                 
@@ -151,18 +155,10 @@ public class PlainProductService {
         PlainProduct product = plainProductRepository.findByIdWithVariants(id)
                 .orElseThrow(() -> new RuntimeException("Plain product not found with id: " + id));
         
-        product.setName(request.getName());
-        product.setDescription(request.getDescription());
         product.setImage(request.getImage());
         product.setPricePerMeter(request.getPricePerMeter());
+        product.setUnitExtension(request.getUnitExtension() != null ? request.getUnitExtension() : "per meter");
         product.setCategoryId(request.getCategoryId());
-        
-        if (request.getStatus() != null) {
-            product.setStatus(PlainProduct.Status.valueOf(request.getStatus().toUpperCase()));
-        }
-        
-        // Clear existing variants and add new ones
-        product.getVariants().clear();
         
         if (request.getVariants() != null) {
             for (PlainProductRequest.VariantRequest variantReq : request.getVariants()) {
@@ -171,12 +167,15 @@ public class PlainProductService {
                 variant.setName(variantReq.getName());
                 
                 if (variantReq.getOptions() != null) {
+                    int optionIndex = 0;
                     for (PlainProductRequest.OptionRequest optionReq : variantReq.getOptions()) {
                         PlainProductVariantOption option = new PlainProductVariantOption();
                         option.setValue(optionReq.getValue());
                         option.setPriceModifier(optionReq.getPriceModifier() != null ? 
                                 optionReq.getPriceModifier() : BigDecimal.ZERO);
+                        option.setDisplayOrder(optionReq.getDisplayOrder() != null ? optionReq.getDisplayOrder() : optionIndex);
                         variant.addOption(option);
+                        optionIndex++;
                     }
                 }
                 
@@ -203,6 +202,7 @@ public class PlainProductService {
         dto.setDescription(product.getDescription());
         dto.setImage(product.getImage());
         dto.setPricePerMeter(product.getPricePerMeter());
+        dto.setUnitExtension(product.getUnitExtension() != null ? product.getUnitExtension() : "per meter");
         dto.setCategoryId(product.getCategoryId());
         dto.setStatus(product.getStatus().name());
         
@@ -231,6 +231,7 @@ public class PlainProductService {
         dto.setId(option.getId());
         dto.setValue(option.getValue());
         dto.setPriceModifier(option.getPriceModifier());
+        dto.setDisplayOrder(option.getDisplayOrder() != null ? option.getDisplayOrder() : 0);
         return dto;
     }
 

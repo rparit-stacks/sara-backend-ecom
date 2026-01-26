@@ -9,6 +9,7 @@ public class PlainProductDto {
     private String description;
     private String image;
     private BigDecimal pricePerMeter;
+    private String unitExtension;
     private Long categoryId;
     private String status;
     private List<VariantDto> variants;
@@ -56,6 +57,7 @@ public class PlainProductDto {
         private Long id;
         private String value;
         private BigDecimal priceModifier;
+        private Integer displayOrder;
         
         public Long getId() {
             return id;
@@ -79,6 +81,14 @@ public class PlainProductDto {
         
         public void setPriceModifier(BigDecimal priceModifier) {
             this.priceModifier = priceModifier;
+        }
+        
+        public Integer getDisplayOrder() {
+            return displayOrder;
+        }
+        
+        public void setDisplayOrder(Integer displayOrder) {
+            this.displayOrder = displayOrder;
         }
     }
     
@@ -121,6 +131,14 @@ public class PlainProductDto {
     
     public void setPricePerMeter(BigDecimal pricePerMeter) {
         this.pricePerMeter = pricePerMeter;
+    }
+    
+    public String getUnitExtension() {
+        return unitExtension;
+    }
+    
+    public void setUnitExtension(String unitExtension) {
+        this.unitExtension = unitExtension;
     }
     
     public Long getCategoryId() {

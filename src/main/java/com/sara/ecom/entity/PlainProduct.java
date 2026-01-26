@@ -25,6 +25,9 @@ public class PlainProduct {
     @Column(name = "price_per_meter", nullable = false, precision = 10, scale = 2)
     private BigDecimal pricePerMeter;
     
+    @Column(name = "unit_extension", length = 50)
+    private String unitExtension = "per meter";
+    
     @Column(name = "category_id")
     private Long categoryId;
     
@@ -95,6 +98,14 @@ public class PlainProduct {
     
     public void setPricePerMeter(BigDecimal pricePerMeter) {
         this.pricePerMeter = pricePerMeter;
+    }
+    
+    public String getUnitExtension() {
+        return unitExtension;
+    }
+    
+    public void setUnitExtension(String unitExtension) {
+        this.unitExtension = unitExtension != null ? unitExtension : "per meter";
     }
     
     public Long getCategoryId() {

@@ -26,6 +26,7 @@ public class PlainProductVariant {
     
     @OneToMany(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
     @Fetch(FetchMode.SUBSELECT)
+    @OrderBy("displayOrder ASC")
     private List<PlainProductVariantOption> options = new ArrayList<>();
     
     // Getters and Setters

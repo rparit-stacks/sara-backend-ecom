@@ -33,7 +33,10 @@ public class EmailTemplateData {
         private String orderNumber;
         private String orderDate;
         private String orderStatus;
+        private String orderStatusDisplay;
         private String paymentStatus;
+        private String paymentStatusDisplay;
+        private String paymentStatusDetail;
         private BigDecimal subtotal;
         private BigDecimal gst;
         private BigDecimal shipping;

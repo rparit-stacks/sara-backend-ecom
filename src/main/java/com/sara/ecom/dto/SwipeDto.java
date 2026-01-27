@@ -266,4 +266,31 @@ public class SwipeDto {
         public Object getErrors() { return errors; }
         public void setErrors(Object errors) { this.errors = errors; }
     }
+
+    /**
+     * Result of invoice creation: either success + data or failure + error fields for admin display.
+     * errorSource is "our_system" (validation, HSN, address, etc.) or "swipe" (Swipe API/network).
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class SwipeInvoiceResultDto {
+        private Boolean success;
+        private SwipeInvoiceData data;
+        private String errorSource;
+        private String errorCode;
+        private String message;
+        private String hint;
+
+        public Boolean getSuccess() { return success; }
+        public void setSuccess(Boolean success) { this.success = success; }
+        public SwipeInvoiceData getData() { return data; }
+        public void setData(SwipeInvoiceData data) { this.data = data; }
+        public String getErrorSource() { return errorSource; }
+        public void setErrorSource(String errorSource) { this.errorSource = errorSource; }
+        public String getErrorCode() { return errorCode; }
+        public void setErrorCode(String errorCode) { this.errorCode = errorCode; }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+        public String getHint() { return hint; }
+        public void setHint(String hint) { this.hint = hint; }
+    }
 }

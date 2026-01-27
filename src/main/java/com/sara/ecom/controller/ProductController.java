@@ -1,13 +1,16 @@
 package com.sara.ecom.controller;
 
+import com.sara.ecom.dto.OrderDto;
 import com.sara.ecom.dto.ProductDto;
 import com.sara.ecom.dto.ProductRequest;
 import com.sara.ecom.entity.Product;
-import com.sara.ecom.service.ProductService;
 import com.sara.ecom.service.JwtService;
+import com.sara.ecom.service.OrderService;
+import com.sara.ecom.service.ProductService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,6 +29,9 @@ public class ProductController {
     
     @Autowired
     private JwtService jwtService;
+    
+    @Autowired
+    private OrderService orderService;
     
     /**
      * Helper method to check if request is from admin
@@ -238,11 +244,41 @@ public class ProductController {
     
     /**
      * Downloads digital product files as a ZIP archive.
-     * Fetches all files from Cloudinary URLs and bundles them into a ZIP.
+     * Requires the caller to have at least one PAID order containing this product.
+     * Admin requests bypass this check.
      */
     @GetMapping("/products/{productId}/download-digital")
-    public ResponseEntity<org.springframework.core.io.Resource> downloadDigitalProductFiles(@PathVariable Long productId) {
+    public ResponseEntity<org.springframework.core.io.Resource> downloadDigitalProductFiles(
+            @PathVariable Long productId,
+            HttpServletRequest request) {
         try {
+            if (!isAdminRequest(request)) {
+                String authHeader = request.getHeader("Authorization");
+                if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+                String token = authHeader.substring(7);
+                if (jwtService.isAdminToken(token)) {
+                    return productService.downloadDigitalProductFiles(productId);
+                }
+                String userEmail;
+                try {
+                    userEmail = jwtService.extractEmail(token);
+                } catch (Exception e) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+                if (userEmail == null || userEmail.isBlank()) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+                List<OrderDto> orders = orderService.getUserOrders(userEmail.trim().toLowerCase());
+                boolean hasPaidOrderWithProduct = orders != null && orders.stream()
+                    .anyMatch(o -> "PAID".equalsIgnoreCase(o.getPaymentStatus())
+                        && o.getItems() != null
+                        && o.getItems().stream().anyMatch(i -> i.getProductId() != null && i.getProductId().equals(productId)));
+                if (!hasPaidOrderWithProduct) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+                }
+            }
             return productService.downloadDigitalProductFiles(productId);
         } catch (Exception e) {
             return ResponseEntity.status(500).build();

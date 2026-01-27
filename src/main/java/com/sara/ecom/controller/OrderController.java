@@ -6,7 +6,9 @@ import com.sara.ecom.exception.InvalidSessionException;
 import com.sara.ecom.repository.UserRepository;
 import com.sara.ecom.service.JwtService;
 import com.sara.ecom.service.OrderService;
+import com.sara.ecom.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +22,9 @@ public class OrderController {
     
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private ProductService productService;
     
     @Autowired
     private JwtService jwtService;
@@ -68,6 +73,40 @@ public class OrderController {
         }
         // Public access for order confirmation page (no auth required)
         return ResponseEntity.ok(orderService.getOrderByIdPublic(id));
+    }
+
+    /**
+     * Download digital product files for an order. Requires order to be PAID and to contain the product.
+     * Uses same access rules as getOrderById (auth user must own order, or public by id for confirmation).
+     */
+    @GetMapping("/orders/{id}/digital-download/{productId}")
+    public ResponseEntity<Resource> downloadDigitalForOrder(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @PathVariable Long id,
+            @PathVariable Long productId) {
+        OrderDto order;
+        if (authHeader != null && !authHeader.isEmpty()) {
+            try {
+                String userEmail = getUserEmailFromToken(authHeader);
+                order = orderService.getOrderById(id, userEmail);
+            } catch (Exception e) {
+                order = orderService.getOrderByIdPublic(id);
+            }
+        } else {
+            order = orderService.getOrderByIdPublic(id);
+        }
+        if (order == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!"PAID".equals(order.getPaymentStatus())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        boolean hasProduct = order.getItems() != null && order.getItems().stream()
+                .anyMatch(item -> productId.equals(item.getProductId()));
+        if (!hasProduct) {
+            return ResponseEntity.notFound().build();
+        }
+        return productService.downloadDigitalProductFiles(productId);
     }
     
     // Admin endpoints
@@ -253,7 +292,13 @@ public class OrderController {
             }
         }
         String name = (String) request.get("name");
-        return ResponseEntity.ok(orderService.updateOrderItem(id, itemId, quantity, price, name, changedBy));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> variants = request.get("variants") instanceof Map
+                ? (Map<String, Object>) request.get("variants") : null;
+        @SuppressWarnings("unchecked")
+        Map<String, Object> customData = request.get("customData") instanceof Map
+                ? (Map<String, Object>) request.get("customData") : null;
+        return ResponseEntity.ok(orderService.updateOrderItem(id, itemId, quantity, price, name, variants, customData, changedBy));
     }
     
     @PutMapping("/admin/orders/{id}/pricing")

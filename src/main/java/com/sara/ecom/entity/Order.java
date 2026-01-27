@@ -130,6 +130,14 @@ public class Order {
     
     @Column(name = "refund_reason", columnDefinition = "TEXT")
     private String refundReason;
+
+    // Last Swipe invoice error (our_system vs swipe, message, hint) for admin display
+    @Column(name = "last_invoice_error_source", length = 32)
+    private String lastInvoiceErrorSource;
+    @Column(name = "last_invoice_error_message", columnDefinition = "TEXT")
+    private String lastInvoiceErrorMessage;
+    @Column(name = "last_invoice_error_hint", columnDefinition = "TEXT")
+    private String lastInvoiceErrorHint;
     
     public enum OrderStatus {
         PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED
@@ -467,6 +475,30 @@ public class Order {
     
     public void setRefundReason(String refundReason) {
         this.refundReason = refundReason;
+    }
+
+    public String getLastInvoiceErrorSource() {
+        return lastInvoiceErrorSource;
+    }
+
+    public void setLastInvoiceErrorSource(String lastInvoiceErrorSource) {
+        this.lastInvoiceErrorSource = lastInvoiceErrorSource;
+    }
+
+    public String getLastInvoiceErrorMessage() {
+        return lastInvoiceErrorMessage;
+    }
+
+    public void setLastInvoiceErrorMessage(String lastInvoiceErrorMessage) {
+        this.lastInvoiceErrorMessage = lastInvoiceErrorMessage;
+    }
+
+    public String getLastInvoiceErrorHint() {
+        return lastInvoiceErrorHint;
+    }
+
+    public void setLastInvoiceErrorHint(String lastInvoiceErrorHint) {
+        this.lastInvoiceErrorHint = lastInvoiceErrorHint;
     }
     
     public void addItem(OrderItem item) {

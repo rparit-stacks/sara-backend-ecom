@@ -124,6 +124,21 @@ public class PaymentWebhookController {
                         logger.info("Stripe payment failed for order: {}", orderId);
                     }
                 }
+            } else if ("payment_intent.canceled".equals(event.getType())) {
+                PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
+                    .getObject()
+                    .orElse(null);
+                if (paymentIntent != null) {
+                    String orderId = paymentIntent.getMetadata().get("order_id");
+                    if (orderId != null) {
+                        orderService.updatePaymentStatus(
+                            Long.parseLong(orderId),
+                            "FAILED",
+                            paymentIntent.getId()
+                        );
+                        logger.info("Stripe payment canceled for order: {}", orderId);
+                    }
+                }
             }
             
             response.put("status", "success");

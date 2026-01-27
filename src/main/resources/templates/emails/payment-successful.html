@@ -25,16 +25,21 @@
                 <div style="background-color: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4caf50;">
                     <p style="margin: 0; color: #4caf50; font-weight: bold;">✓ Payment Received</p>
                     <p style="margin: 5px 0 0 0; color: #666666;">Amount: <strong>₹[[${#numbers.formatDecimal(data.total, 1, 2)}]]</strong></p>
-                    <p style="margin: 5px 0 0 0; color: #666666;">Payment ID: [[${data.paymentStatus}]]</p>
+                    <p style="margin: 5px 0 0 0; color: #666666;">Payment: [[${data.paymentStatusDisplay != null ? data.paymentStatusDisplay : data.paymentStatus}]]</p>
+                    <p style="margin: 5px 0 0 0; color: #666666;">Order status: [[${data.orderStatusDisplay != null ? data.orderStatusDisplay : (data.orderStatus == 'DELIVERED' ? 'Delivered' : 'Pending – confirmation pending')}]]</p>
+                    <p th:if="${data.paymentStatusDetail != null and !data.paymentStatusDetail.isEmpty()}" style="margin: 5px 0 0 0; color: #666666;">[[${data.paymentStatusDetail}]]</p>
                 </div>
                 
-                <p style="color: #666666; font-size: 14px; line-height: 1.6;">
+                <p th:if="${data.orderStatus == 'DELIVERED'}" style="color: #666666; font-size: 14px; line-height: 1.6;">
+                    Your order is delivered. You can download your files using the details below.
+                </p>
+                <p th:if="${data.orderStatus != 'DELIVERED'}" style="color: #666666; font-size: 14px; line-height: 1.6;">
                     Your order is now confirmed and will be processed shortly. We'll send you updates as your order progresses.
                 </p>
                 
                 <!-- Digital Product ZIP Password Section -->
-                <div th:if="${data.items != null and !data.items.isEmpty()}" th:each="item : ${data.items}" th:if="${item.productType == 'DIGITAL' and item.zipPassword != null}">
-                    <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                <th:block th:if="${data.items != null and !data.items.isEmpty()}">
+                    <div th:each="item : ${data.items}" th:if="${item.productType == 'DIGITAL' and item.zipPassword != null}" style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
                         <h3 style="margin-top: 0; color: #856404;">📦 Digital Product Download</h3>
                         <p style="margin: 10px 0; color: #856404; font-weight: bold;">Product: [[${item.productName}]]</p>
                         <p style="margin: 10px 0; color: #856404;">
@@ -47,7 +52,7 @@
                             You can download your files from your order history or dashboard.
                         </p>
                     </div>
-                </div>
+                </th:block>
                 
                 <div style="text-align: center; margin: 30px 0;">
                     <a th:href="${appUrl + '/orders/' + data.orderNumber}" style="display: inline-block; padding: 12px 30px; background-color: #2b9d8f; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">View Order</a>

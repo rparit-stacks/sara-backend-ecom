@@ -21,6 +21,8 @@ import com.sara.ecom.repository.OrderRepository;
 import com.sara.ecom.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -70,6 +72,10 @@ public class OrderService {
     
     @Autowired
     private ProductService productService;
+    
+    @Autowired
+    @Lazy
+    private OrderService self;
     
     @Autowired
     private PaymentConfigService paymentConfigService;
@@ -531,28 +537,26 @@ public class OrderService {
             if (savedOrder.getInvoiceStatus() == null || 
                 savedOrder.getInvoiceStatus() == Order.InvoiceStatus.NOT_CREATED) {
                 // Invoice not created yet - create it now
-                try {
-                    com.sara.ecom.dto.SwipeDto.SwipeInvoiceResponse swipeResponse = swipeService.createInvoice(savedOrder);
-                    if (swipeResponse != null && swipeResponse.getSuccess() != null && swipeResponse.getSuccess()) {
-                        // Mark invoice as CREATED first (even if data is null, invoice was created)
-                        savedOrder.setInvoiceStatus(Order.InvoiceStatus.CREATED);
-                        savedOrder.setInvoiceCreatedAt(java.time.LocalDateTime.now());
-                        
-                        // Update invoice details if data is available
-                        if (swipeResponse.getData() != null) {
-                            savedOrder.setSwipeInvoiceId(swipeResponse.getData().getHashId());
-                            savedOrder.setSwipeInvoiceNumber(swipeResponse.getData().getSerialNumber());
-                            savedOrder.setSwipeIrn(swipeResponse.getData().getIrn());
-                            savedOrder.setSwipeQrCode(swipeResponse.getData().getQrCode());
-                            savedOrder.setSwipeInvoiceUrl(swipeResponse.getData().getPdfUrl());
-                        }
-                        
-                        savedOrder = orderRepository.save(savedOrder);
+                com.sara.ecom.dto.SwipeDto.SwipeInvoiceResultDto invoiceResult = swipeService.createInvoice(savedOrder);
+                if (invoiceResult != null && Boolean.TRUE.equals(invoiceResult.getSuccess())) {
+                    savedOrder.setInvoiceStatus(Order.InvoiceStatus.CREATED);
+                    savedOrder.setInvoiceCreatedAt(java.time.LocalDateTime.now());
+                    if (invoiceResult.getData() != null) {
+                        savedOrder.setSwipeInvoiceId(invoiceResult.getData().getHashId());
+                        savedOrder.setSwipeInvoiceNumber(invoiceResult.getData().getSerialNumber());
+                        savedOrder.setSwipeIrn(invoiceResult.getData().getIrn());
+                        savedOrder.setSwipeQrCode(invoiceResult.getData().getQrCode());
+                        savedOrder.setSwipeInvoiceUrl(invoiceResult.getData().getPdfUrl());
                     }
-                } catch (Exception e) {
-                    // Log error but don't fail order update
-                    System.err.println("Error creating Swipe invoice: " + e.getMessage());
-                    e.printStackTrace();
+                    savedOrder.setLastInvoiceErrorSource(null);
+                    savedOrder.setLastInvoiceErrorMessage(null);
+                    savedOrder.setLastInvoiceErrorHint(null);
+                    savedOrder = orderRepository.save(savedOrder);
+                } else if (invoiceResult != null) {
+                    savedOrder.setLastInvoiceErrorSource(invoiceResult.getErrorSource());
+                    savedOrder.setLastInvoiceErrorMessage(invoiceResult.getMessage());
+                    savedOrder.setLastInvoiceErrorHint(invoiceResult.getHint());
+                    savedOrder = orderRepository.save(savedOrder);
                 }
             } else {
                 // Invoice already CREATED - skip creation, just proceed with order confirmation
@@ -708,6 +712,21 @@ public class OrderService {
         Order.PaymentStatus oldPaymentStatus = order.getPaymentStatus();
         String oldPaymentId = order.getPaymentId();
         BigDecimal oldPaymentAmount = order.getPaymentAmount();
+        Order.OrderStatus oldOrderStatus = order.getStatus();
+
+        // #region agent log
+        try (java.io.FileWriter fw = new java.io.FileWriter("r:\\My Projects\\Quout\\.cursor\\debug.log", true)) {
+            fw.write("{\"sessionId\":\"debug-session\",\"runId\":\"pre-fix-run1\",\"hypothesisId\":\"H2\",\"location\":\"OrderService.updatePaymentStatus:before\",\"message\":\"updatePaymentStatus called\",\"data\":{\"orderId\":"
+                    + orderId
+                    + ",\"requestedStatus\":\""
+                    + paymentStatus
+                    + "\",\"oldPaymentStatus\":\""
+                    + (oldPaymentStatus != null ? oldPaymentStatus.name() : "")
+                    + "\"},\"timestamp\":"
+                    + System.currentTimeMillis()
+                    + "}\n");
+        } catch (Exception ignored) {}
+        // #endregion
         
         order.setPaymentStatus(Order.PaymentStatus.valueOf(paymentStatus.toUpperCase()));
         if (paymentId != null) {
@@ -715,6 +734,17 @@ public class OrderService {
         }
         if (paymentAmount != null) {
             order.setPaymentAmount(paymentAmount);
+        }
+
+        // When payment becomes PAID: digital-only → DELIVERED; physical/mixed → keep PENDING (order confirmation pending)
+        if (order.getPaymentStatus() == Order.PaymentStatus.PAID &&
+                (oldOrderStatus == null || oldOrderStatus == Order.OrderStatus.PENDING)) {
+            boolean allDigital = order.getItems() != null && !order.getItems().isEmpty()
+                    && order.getItems().stream().allMatch(i -> "DIGITAL".equals(i.getProductType()));
+            if (allDigital) {
+                order.setStatus(Order.OrderStatus.DELIVERED);
+            }
+            // Physical or mixed orders: leave status PENDING (order confirmation pending until shipped)
         }
         
         // Log audit entries
@@ -768,9 +798,15 @@ public class OrderService {
         
         Order savedOrder = orderRepository.save(order);
         
-        // Generate password-protected ZIP for digital products when payment is completed
+        // Generate password-protected ZIP for digital products when payment is completed.
+        // Run in separate transaction so failure does not roll back the payment status update.
         if (order.getPaymentStatus() == Order.PaymentStatus.PAID && oldPaymentStatus != Order.PaymentStatus.PAID) {
-            generateDigitalProductZip(savedOrder);
+            try {
+                self.generateDigitalProductZip(savedOrder);
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(OrderService.class)
+                    .warn("Digital ZIP generation failed for order {}: {}", savedOrder.getId(), e.getMessage());
+            }
         }
         
         OrderDto orderDto = toOrderDto(savedOrder);
@@ -809,6 +845,18 @@ public class OrderService {
             // Trigger notification hook (currently no-op, WhatsApp removed)
             notificationHooks.onPaymentStatusChanged(savedOrder);
         }
+
+        // #region agent log
+        try (java.io.FileWriter fw = new java.io.FileWriter("r:\\My Projects\\Quout\\.cursor\\debug.log", true)) {
+            fw.write("{\"sessionId\":\"debug-session\",\"runId\":\"pre-fix-run1\",\"hypothesisId\":\"H2\",\"location\":\"OrderService.updatePaymentStatus:after\",\"message\":\"updatePaymentStatus completed\",\"data\":{\"orderId\":"
+                    + orderId
+                    + ",\"finalPaymentStatus\":\""
+                    + (savedOrder.getPaymentStatus() != null ? savedOrder.getPaymentStatus().name() : "")
+                    + "\"},\"timestamp\":"
+                    + System.currentTimeMillis()
+                    + "}\n");
+        } catch (Exception ignored) {}
+        // #endregion
         
         return orderDto;
     }
@@ -816,9 +864,10 @@ public class OrderService {
     /**
      * Generates password-protected ZIP files for digital products in an order.
      * Only called when payment status changes to PAID.
+     * Uses REQUIRES_NEW so failures do not roll back the payment status update.
      */
-    @Transactional
-    protected void generateDigitalProductZip(Order order) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void generateDigitalProductZip(Order order) {
         if (order.getItems() == null || order.getItems().isEmpty()) {
             return;
         }
@@ -858,28 +907,28 @@ public class OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
-        try {
-            com.sara.ecom.dto.SwipeDto.SwipeInvoiceResponse swipeResponse = swipeService.createInvoice(order);
-            if (swipeResponse != null && swipeResponse.getSuccess() != null && swipeResponse.getSuccess()) {
-                System.out.print("Mark invoice as CREATED first (even if data is null, invoice was created)");
-                order.setInvoiceStatus(Order.InvoiceStatus.CREATED);
-                if (order.getInvoiceCreatedAt() == null) {
-                    order.setInvoiceCreatedAt(java.time.LocalDateTime.now());
-                }
-                
-                // Update invoice details if data is available
-                if (swipeResponse.getData() != null) {
-                    order.setSwipeInvoiceId(swipeResponse.getData().getHashId());
-                    order.setSwipeInvoiceNumber(swipeResponse.getData().getSerialNumber());
-                    order.setSwipeIrn(swipeResponse.getData().getIrn());
-                    order.setSwipeQrCode(swipeResponse.getData().getQrCode());
-                    order.setSwipeInvoiceUrl(swipeResponse.getData().getPdfUrl());
-                }
-                
-                order = orderRepository.save(order);
+        com.sara.ecom.dto.SwipeDto.SwipeInvoiceResultDto result = swipeService.createInvoice(order);
+        if (result != null && Boolean.TRUE.equals(result.getSuccess())) {
+            order.setInvoiceStatus(Order.InvoiceStatus.CREATED);
+            if (order.getInvoiceCreatedAt() == null) {
+                order.setInvoiceCreatedAt(java.time.LocalDateTime.now());
             }
-        } catch (Exception e) {
-            throw new RuntimeException("Error creating Swipe invoice: " + e.getMessage(), e);
+            if (result.getData() != null) {
+                order.setSwipeInvoiceId(result.getData().getHashId());
+                order.setSwipeInvoiceNumber(result.getData().getSerialNumber());
+                order.setSwipeIrn(result.getData().getIrn());
+                order.setSwipeQrCode(result.getData().getQrCode());
+                order.setSwipeInvoiceUrl(result.getData().getPdfUrl());
+            }
+            order.setLastInvoiceErrorSource(null);
+            order.setLastInvoiceErrorMessage(null);
+            order.setLastInvoiceErrorHint(null);
+            order = orderRepository.save(order);
+        } else if (result != null) {
+            order.setLastInvoiceErrorSource(result.getErrorSource());
+            order.setLastInvoiceErrorMessage(result.getMessage());
+            order.setLastInvoiceErrorHint(result.getHint());
+            order = orderRepository.save(order);
         }
         
         return toOrderDto(order);
@@ -997,11 +1046,12 @@ public class OrderService {
     
     @Transactional
     public OrderDto updateOrderItem(Long orderId, Long itemId, Integer quantity, BigDecimal price, String name) {
-        return updateOrderItem(orderId, itemId, quantity, price, name, "system");
+        return updateOrderItem(orderId, itemId, quantity, price, name, null, null, "system");
     }
     
     @Transactional
-    public OrderDto updateOrderItem(Long orderId, Long itemId, Integer quantity, BigDecimal price, String name, String changedBy) {
+    public OrderDto updateOrderItem(Long orderId, Long itemId, Integer quantity, BigDecimal price, String name,
+            java.util.Map<String, Object> variants, java.util.Map<String, Object> customData, String changedBy) {
         Order order = orderRepository.findByIdWithItems(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
         
@@ -1013,6 +1063,8 @@ public class OrderService {
         Integer oldQuantity = item.getQuantity();
         BigDecimal oldPrice = item.getPrice();
         String oldName = item.getName();
+        String oldVariantsJson = item.getVariantsJson();
+        String oldCustomDataJson = item.getCustomDataJson();
         
         if (quantity != null && quantity > 0) {
             item.setQuantity(quantity);
@@ -1022,6 +1074,20 @@ public class OrderService {
         }
         if (name != null && !name.trim().isEmpty()) {
             item.setName(name.trim());
+        }
+        if (variants != null) {
+            try {
+                item.setVariantsJson(objectMapper.writeValueAsString(variants));
+            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                throw new RuntimeException("Invalid variants JSON", e);
+            }
+        }
+        if (customData != null) {
+            try {
+                item.setCustomDataJson(objectMapper.writeValueAsString(customData));
+            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                throw new RuntimeException("Invalid customData JSON", e);
+            }
         }
         
         // Log audit entries
@@ -1038,6 +1104,14 @@ public class OrderService {
         if (name != null && !name.trim().equals(oldName)) {
             logAuditEntry(orderId, changedBy, "ITEM_UPDATE", "item_" + itemId + "_name", oldName, name.trim(), 
                          "Item name updated");
+        }
+        if (variants != null) {
+            logAuditEntry(orderId, changedBy, "ITEM_UPDATE", "item_" + itemId + "_variants",
+                    oldVariantsJson, item.getVariantsJson(), "Item variants updated");
+        }
+        if (customData != null) {
+            logAuditEntry(orderId, changedBy, "ITEM_UPDATE", "item_" + itemId + "_customData",
+                    oldCustomDataJson, item.getCustomDataJson(), "Item custom data updated");
         }
         
         // Recalculate item total
@@ -1412,6 +1486,9 @@ public class OrderService {
         dto.setRefundDate(order.getRefundDate());
         dto.setRefundTransactionId(order.getRefundTransactionId());
         dto.setRefundReason(order.getRefundReason());
+        dto.setLastInvoiceErrorSource(order.getLastInvoiceErrorSource());
+        dto.setLastInvoiceErrorMessage(order.getLastInvoiceErrorMessage());
+        dto.setLastInvoiceErrorHint(order.getLastInvoiceErrorHint());
         
         // Parse addresses
         if (order.getShippingAddress() != null) {
@@ -1501,7 +1578,32 @@ public class OrderService {
             }
         }
         
+        // Resolve custom field labels (id -> label) for display in order dashboard
+        if (item.getProductId() != null && dto.getCustomData() != null && !dto.getCustomData().isEmpty()) {
+            Map<String, String> labels = resolveCustomFieldLabels(item.getProductId(), dto.getCustomData().keySet());
+            dto.setCustomFieldLabels(labels);
+        }
+        
         return dto;
+    }
+    
+    /** Builds a map of custom field id (string) -> label from the product's custom fields. */
+    private Map<String, String> resolveCustomFieldLabels(Long productId, java.util.Set<String> fieldIds) {
+        Map<String, String> labels = new HashMap<>();
+        if (productId == null || fieldIds == null || fieldIds.isEmpty()) {
+            return labels;
+        }
+        productRepository.findByIdWithCustomFields(productId).ifPresent(product -> {
+            if (product.getCustomFields() != null) {
+                for (com.sara.ecom.entity.ProductCustomField f : product.getCustomFields()) {
+                    String idStr = String.valueOf(f.getId());
+                    if (fieldIds.contains(idStr) && f.getLabel() != null) {
+                        labels.put(idStr, f.getLabel());
+                    }
+                }
+            }
+        });
+        return labels;
     }
     
     /**
@@ -1612,6 +1714,69 @@ public class OrderService {
     }
     
     /**
+     * Human-readable payment status label for emails (Full COD, Partial Paid, Paid, Failed, etc.).
+     */
+    private String computePaymentStatusDisplay(OrderDto orderDto) {
+        String status = orderDto.getPaymentStatus() != null ? orderDto.getPaymentStatus().toUpperCase() : "PENDING";
+        String method = orderDto.getPaymentMethod() != null ? orderDto.getPaymentMethod().toUpperCase() : "";
+        if (("COD".equals(method) || "CASH_ON_DELIVERY".equals(method)) && "PENDING".equals(status)) {
+            return "Full COD";
+        }
+        if ("PARTIAL_COD".equals(method) && "PAID".equals(status)) {
+            return "Partial Paid";
+        }
+        if ("PARTIAL_COD".equals(method) && "PENDING".equals(status)) {
+            return "Partial COD (Pending)";
+        }
+        if ("PAID".equals(status)) {
+            return "Paid";
+        }
+        if ("FAILED".equals(status)) {
+            return "Failed";
+        }
+        if ("REFUNDED".equals(status)) {
+            return "Refunded";
+        }
+        return "Pending";
+    }
+
+    /**
+     * Optional detail for payment status (e.g. "₹X paid, ₹Y pending" for Partial Paid).
+     */
+    private String computePaymentStatusDetail(OrderDto orderDto) {
+        String status = orderDto.getPaymentStatus() != null ? orderDto.getPaymentStatus().toUpperCase() : "PENDING";
+        String method = orderDto.getPaymentMethod() != null ? orderDto.getPaymentMethod().toUpperCase() : "";
+        if ("PARTIAL_COD".equals(method) && "PAID".equals(status)) {
+            BigDecimal paid = orderDto.getPaymentAmount() != null ? orderDto.getPaymentAmount() : BigDecimal.ZERO;
+            BigDecimal total = orderDto.getTotal() != null ? orderDto.getTotal() : BigDecimal.ZERO;
+            if (total.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal pending = total.subtract(paid);
+                return String.format("₹%s paid, ₹%s pending",
+                    String.format("%,.2f", paid.doubleValue()),
+                    String.format("%,.2f", pending.doubleValue()));
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Human-readable order status label for emails (Delivered, Pending – confirmation pending, etc.).
+     */
+    private String computeOrderStatusDisplay(OrderDto orderDto) {
+        String status = orderDto.getStatus() != null ? orderDto.getStatus().toUpperCase() : "PENDING";
+        if ("DELIVERED".equals(status)) {
+            return "Delivered";
+        }
+        if ("PENDING".equals(status)) {
+            return "Pending – confirmation pending";
+        }
+        if ("CANCELLED".equals(status)) {
+            return "Cancelled";
+        }
+        return orderDto.getStatus() != null ? orderDto.getStatus() : "Pending";
+    }
+
+    /**
      * Builds OrderEmailData from OrderDto and User for email notifications
      */
     private EmailTemplateData.OrderEmailData buildOrderEmailData(OrderDto orderDto, User user) {
@@ -1682,7 +1847,10 @@ public class OrderService {
         emailData.setOrderNumber(orderDto.getOrderNumber());
         emailData.setOrderDate(orderDate);
         emailData.setOrderStatus(orderDto.getStatus());
+        emailData.setOrderStatusDisplay(computeOrderStatusDisplay(orderDto));
         emailData.setPaymentStatus(orderDto.getPaymentStatus());
+        emailData.setPaymentStatusDisplay(computePaymentStatusDisplay(orderDto));
+        emailData.setPaymentStatusDetail(computePaymentStatusDetail(orderDto));
         emailData.setSubtotal(orderDto.getSubtotal());
         emailData.setGst(orderDto.getGst());
         emailData.setShipping(orderDto.getShipping());
@@ -1701,6 +1869,20 @@ public class OrderService {
         Order order = orderRepository.findByOrderNumber(orderNumber)
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderNumber));
         return updatePaymentStatus(order.getId(), paymentStatus, paymentId);
+    }
+
+    /**
+     * Record payment failure for an order (e.g. user closed modal or gateway reported failure).
+     * Idempotent: does not overwrite PAID or REFUNDED.
+     */
+    @Transactional
+    public OrderDto recordPaymentFailed(String orderNumber, String gateway) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderNumber));
+        if (order.getPaymentStatus() == Order.PaymentStatus.PAID || order.getPaymentStatus() == Order.PaymentStatus.REFUNDED) {
+            return toOrderDto(order);
+        }
+        return updatePaymentStatus(order.getId(), "FAILED", "record-failed_" + (gateway != null ? gateway : "unknown"));
     }
     
     /**
@@ -1722,6 +1904,9 @@ public class OrderService {
         result.put("invoiceStatus", order.getInvoiceStatus() != null ? order.getInvoiceStatus().name() : "NOT_CREATED");
         result.put("swipeInvoiceId", order.getSwipeInvoiceId());
         result.put("swipeInvoiceNumber", order.getSwipeInvoiceNumber());
+        result.put("lastInvoiceErrorSource", order.getLastInvoiceErrorSource());
+        result.put("lastInvoiceErrorMessage", order.getLastInvoiceErrorMessage());
+        result.put("lastInvoiceErrorHint", order.getLastInvoiceErrorHint());
         
         // If we have hash_id, try to verify with Swipe
         if (order.getSwipeInvoiceId() != null && !order.getSwipeInvoiceId().trim().isEmpty()) {

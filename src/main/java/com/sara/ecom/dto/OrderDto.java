@@ -47,6 +47,11 @@ public class OrderDto {
     private LocalDateTime refundDate;
     private String refundTransactionId;
     private String refundReason;
+
+    // Last Swipe invoice error for admin display (our_system vs swipe, message, hint)
+    private String lastInvoiceErrorSource;
+    private String lastInvoiceErrorMessage;
+    private String lastInvoiceErrorHint;
     
     public static class OrderItemDto {
         private Long id;
@@ -61,6 +66,8 @@ public class OrderDto {
         private Map<String, VariantSelectionDto> variantSelections; // New structured format
         private List<VariantDisplayInfo> variantDisplay; // Resolved variant/option names for display
         private Map<String, Object> customData;
+        /** Map of custom field id (as string) -> label for display in order dashboard */
+        private Map<String, String> customFieldLabels;
         private Long designId;
         private Long fabricId;
         private String digitalDownloadUrl;
@@ -90,6 +97,8 @@ public class OrderDto {
         public void setVariantDisplay(List<VariantDisplayInfo> variantDisplay) { this.variantDisplay = variantDisplay; }
         public Map<String, Object> getCustomData() { return customData; }
         public void setCustomData(Map<String, Object> customData) { this.customData = customData; }
+        public Map<String, String> getCustomFieldLabels() { return customFieldLabels; }
+        public void setCustomFieldLabels(Map<String, String> customFieldLabels) { this.customFieldLabels = customFieldLabels; }
         public Long getDesignId() { return designId; }
         public void setDesignId(Long designId) { this.designId = designId; }
         public Long getFabricId() { return fabricId; }
@@ -181,4 +190,10 @@ public class OrderDto {
     public void setRefundTransactionId(String refundTransactionId) { this.refundTransactionId = refundTransactionId; }
     public String getRefundReason() { return refundReason; }
     public void setRefundReason(String refundReason) { this.refundReason = refundReason; }
+    public String getLastInvoiceErrorSource() { return lastInvoiceErrorSource; }
+    public void setLastInvoiceErrorSource(String lastInvoiceErrorSource) { this.lastInvoiceErrorSource = lastInvoiceErrorSource; }
+    public String getLastInvoiceErrorMessage() { return lastInvoiceErrorMessage; }
+    public void setLastInvoiceErrorMessage(String lastInvoiceErrorMessage) { this.lastInvoiceErrorMessage = lastInvoiceErrorMessage; }
+    public String getLastInvoiceErrorHint() { return lastInvoiceErrorHint; }
+    public void setLastInvoiceErrorHint(String lastInvoiceErrorHint) { this.lastInvoiceErrorHint = lastInvoiceErrorHint; }
 }

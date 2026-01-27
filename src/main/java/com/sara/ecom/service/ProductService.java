@@ -1705,14 +1705,18 @@ public class ProductService {
         if (fileUrls.isEmpty()) {
             throw new RuntimeException("No valid file URLs found");
         }
+        if (password == null || password.trim().isEmpty()) {
+            throw new RuntimeException("ZIP password cannot be null or empty");
+        }
+        char[] passwordChars = password.trim().toCharArray();
         
         // Create temporary directory for ZIP creation
         java.io.File tempDir = new java.io.File(System.getProperty("java.io.tmpdir"));
         java.io.File tempZipFile = java.io.File.createTempFile("digital_product_", ".zip", tempDir);
         
         try {
-            // Use Zip4j to create password-protected ZIP
-            net.lingala.zip4j.ZipFile zipFile = new net.lingala.zip4j.ZipFile(tempZipFile);
+            // Use Zip4j to create password-protected ZIP (password must be set at construction)
+            net.lingala.zip4j.ZipFile zipFile = new net.lingala.zip4j.ZipFile(tempZipFile, passwordChars);
             net.lingala.zip4j.model.ZipParameters zipParameters = new net.lingala.zip4j.model.ZipParameters();
             zipParameters.setEncryptFiles(true);
             zipParameters.setEncryptionMethod(net.lingala.zip4j.model.enums.EncryptionMethod.ZIP_STANDARD);
@@ -1763,9 +1767,6 @@ public class ProductService {
                     System.err.println("Failed to download file from URL: " + url + " - " + e.getMessage());
                 }
             }
-            
-            // Set password for the ZIP
-            zipFile.setPassword(password.toCharArray());
             
             // Close ZIP file before reading bytes
             zipFile.close();

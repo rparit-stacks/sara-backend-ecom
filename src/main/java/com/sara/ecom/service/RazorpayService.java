@@ -127,25 +127,36 @@ public class RazorpayService implements PaymentService {
     @Override
     public PaymentResponse verifyPayment(PaymentVerificationRequest request) {
         try {
-            // Verify payment signature
-            String orderId = request.getPaymentId();
+            if (request.getVerificationData() == null) {
+                return PaymentResponse.builder()
+                    .paymentId(request.getPaymentId())
+                    .gateway("RAZORPAY")
+                    .status("FAILED")
+                    .message("Missing verification data")
+                    .build();
+            }
+            // Use verificationData for Razorpay IDs (signature = order_id|payment_id)
+            String razorpayOrderId = (String) request.getVerificationData().get("razorpay_order_id");
             String paymentId = (String) request.getVerificationData().get("razorpay_payment_id");
             String signature = (String) request.getVerificationData().get("razorpay_signature");
-            
-            // Razorpay signature verification using HMAC SHA256
-            String generatedSignature = generateRazorpaySignature(orderId + "|" + paymentId, getKeySecret());
-            
+            if (razorpayOrderId == null || paymentId == null || signature == null) {
+                return PaymentResponse.builder()
+                    .paymentId(paymentId != null ? paymentId : request.getPaymentId())
+                    .gateway("RAZORPAY")
+                    .status("FAILED")
+                    .message("Missing razorpay_order_id, razorpay_payment_id or razorpay_signature")
+                    .build();
+            }
+            // Razorpay signature verification using HMAC SHA256 (order_id|payment_id)
+            String generatedSignature = generateRazorpaySignature(razorpayOrderId + "|" + paymentId, getKeySecret());
             boolean isValid = generatedSignature != null && generatedSignature.equals(signature);
-            
             String status = isValid ? "SUCCESS" : "FAILED";
-            
             return PaymentResponse.builder()
                 .paymentId(paymentId)
                 .gateway("RAZORPAY")
                 .status(status)
                 .message(isValid ? "Payment verified successfully" : "Payment verification failed")
                 .build();
-                
         } catch (Exception e) {
             logger.error("Razorpay payment verification failed", e);
             throw new RuntimeException("Failed to verify Razorpay payment: " + e.getMessage());

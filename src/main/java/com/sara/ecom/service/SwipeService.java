@@ -141,10 +141,26 @@ public class SwipeService {
         }
     }
     
+    private static SwipeDto.SwipeInvoiceResultDto successResult(SwipeDto.SwipeInvoiceData data) {
+        SwipeDto.SwipeInvoiceResultDto r = new SwipeDto.SwipeInvoiceResultDto();
+        r.setSuccess(true);
+        r.setData(data);
+        return r;
+    }
+
+    private static SwipeDto.SwipeInvoiceResultDto errorResult(String errorSource, String message, String hint) {
+        SwipeDto.SwipeInvoiceResultDto r = new SwipeDto.SwipeInvoiceResultDto();
+        r.setSuccess(false);
+        r.setErrorSource(errorSource);
+        r.setMessage(message);
+        r.setHint(hint);
+        return r;
+    }
+
     /**
-     * Create invoice in Swipe from order
+     * Create invoice in Swipe from order. Returns result DTO with either success+data or error fields for admin display.
      */
-    public SwipeDto.SwipeInvoiceResponse createInvoice(Order order) {
+    public SwipeDto.SwipeInvoiceResultDto createInvoice(Order order) {
         // Declare variables outside try block for duplicate error retry
         SwipeDto.SwipeInvoiceRequest invoiceRequest = null;
         SwipeDto.SwipePartyRequest partyRequest = null;
@@ -157,13 +173,13 @@ public class SwipeService {
             
             if (!Boolean.TRUE.equals(config.getSwipeEnabled())) {
                 logger.info("Swipe integration is disabled");
-                return null;
+                return errorResult("our_system", "Swipe integration is disabled", null);
             }
             
             apiKey = config.getSwipeApiKey();
             if (apiKey == null || apiKey.trim().isEmpty()) {
                 logger.warn("Swipe API key not configured");
-                return null;
+                return errorResult("our_system", "Swipe API key not configured", null);
             }
             
             // Check if invoice already exists - prevent duplicate creation
@@ -172,39 +188,26 @@ public class SwipeService {
                 order.getInvoiceStatus() == com.sara.ecom.entity.Order.InvoiceStatus.CREATED) {
                 logger.info("Invoice already CREATED for order {} (status: CREATED), skipping duplicate creation", 
                     order.getId());
-                // Return a mock response indicating invoice already exists
-                SwipeDto.SwipeInvoiceResponse existingResponse = new SwipeDto.SwipeInvoiceResponse();
-                existingResponse.setSuccess(true);
                 SwipeDto.SwipeInvoiceData data = new SwipeDto.SwipeInvoiceData();
                 data.setHashId(order.getSwipeInvoiceId());
                 data.setSerialNumber(order.getSwipeInvoiceNumber());
                 data.setIrn(order.getSwipeIrn());
                 data.setQrCode(order.getSwipeQrCode());
                 data.setPdfUrl(order.getSwipeInvoiceUrl());
-                existingResponse.setData(data);
-                existingResponse.setMessage("Invoice already exists");
-                return existingResponse;
+                return successResult(data);
             }
             
             // Fallback check: if swipeInvoiceId exists but status is not set, also skip
-            // This handles legacy orders that have invoice but status wasn't set
             if (order.getSwipeInvoiceId() != null && !order.getSwipeInvoiceId().trim().isEmpty()) {
                 logger.info("Invoice already exists for order {} with hash_id: {} (status not set), skipping creation", 
                     order.getId(), order.getSwipeInvoiceId());
-                // Note: We don't update status here because SwipeService shouldn't modify Order entity
-                // The status will be updated by OrderService when it processes the response
-                // Return a mock response indicating invoice already exists
-                SwipeDto.SwipeInvoiceResponse existingResponse = new SwipeDto.SwipeInvoiceResponse();
-                existingResponse.setSuccess(true);
                 SwipeDto.SwipeInvoiceData data = new SwipeDto.SwipeInvoiceData();
                 data.setHashId(order.getSwipeInvoiceId());
                 data.setSerialNumber(order.getSwipeInvoiceNumber());
                 data.setIrn(order.getSwipeIrn());
                 data.setQrCode(order.getSwipeQrCode());
                 data.setPdfUrl(order.getSwipeInvoiceUrl());
-                existingResponse.setData(data);
-                existingResponse.setMessage("Invoice already exists");
-                return existingResponse;
+                return successResult(data);
             }
             
             // Get user
@@ -467,21 +470,21 @@ public class SwipeService {
                 SwipeDto.SwipeInvoiceResponse invoiceResponse = response.getBody();
                 if (invoiceResponse.getSuccess() != null && invoiceResponse.getSuccess()) {
                     logger.info("Successfully created invoice in Swipe for order: {}", order.getId());
-                    return invoiceResponse;
+                    return successResult(invoiceResponse.getData());
                 } else {
-                    logger.warn("Swipe API returned unsuccessful response for order {}: {}", 
-                        order.getId(), invoiceResponse.getMessage());
-                    return null;
+                    String msg = invoiceResponse.getMessage() != null ? invoiceResponse.getMessage() : "Swipe returned unsuccessful";
+                    logger.warn("Swipe API returned unsuccessful response for order {}: {}", order.getId(), msg);
+                    return errorResult("swipe", msg, null);
                 }
             }
             
             logger.warn("Failed to create invoice in Swipe for order: {}. Status: {}", 
                 order.getId(), response.getStatusCode());
-            return null;
+            return errorResult("swipe", "Swipe API returned " + response.getStatusCode(), null);
         } catch (org.springframework.web.client.ResourceAccessException e) {
             logger.error("Network error creating invoice in Swipe for order: " + order.getId() + 
                 ". This may be due to network connectivity issues or incorrect API URL.", e);
-            return null;
+            return errorResult("swipe", "Network error: " + (e.getMessage() != null ? e.getMessage() : "Unable to reach Swipe"), null);
         } catch (org.springframework.web.client.HttpClientErrorException e) {
             String responseBody = e.getResponseBodyAsString();
             logger.error("HTTP error creating invoice in Swipe for order: " + order.getId() + 
@@ -509,7 +512,7 @@ public class SwipeService {
                         SwipeDto.SwipeInvoiceResponse retryInvoiceResponse = retryResponse.getBody();
                         if (retryInvoiceResponse.getSuccess() != null && retryInvoiceResponse.getSuccess()) {
                             logger.info("Successfully created invoice in Swipe for order {} after EXISTING_CUSTOMER retry", order.getId());
-                            return retryInvoiceResponse;
+                            return successResult(retryInvoiceResponse.getData());
                         }
                     }
                 } catch (Exception retryException) {
@@ -560,7 +563,7 @@ public class SwipeService {
                                 SwipeDto.SwipeInvoiceResponse retryInvoiceResponse = retryResponse.getBody();
                                 if (retryInvoiceResponse.getSuccess() != null && retryInvoiceResponse.getSuccess()) {
                                     logger.info("Successfully created invoice in Swipe for order {} after retry with suggested serial", order.getId());
-                                    return retryInvoiceResponse;
+                                    return successResult(retryInvoiceResponse.getData());
                                 }
                             }
                         }
@@ -569,11 +572,23 @@ public class SwipeService {
                     logger.warn("Failed to retry with suggested serial number for order {}", order.getId(), retryException);
                 }
             }
-            
-            return null;
+
+            String errMsg = responseBody != null && !responseBody.isEmpty() ? responseBody : ("Swipe API error: " + e.getStatusCode());
+            String src = "swipe";
+            String hint = null;
+            if (responseBody != null) {
+                if (responseBody.contains("EXISTING_CUSTOMER") || responseBody.contains("DUPLICATE_DOC_SERIAL_NUMBER")) {
+                    src = "our_system";
+                }
+                if (responseBody.contains("HSN") || responseBody.contains("hsn")) {
+                    src = "our_system";
+                    hint = "Check and correct HSN codes for all products (4–8 digits).";
+                }
+            }
+            return errorResult(src, errMsg.length() > 500 ? errMsg.substring(0, 500) + "…" : errMsg, hint);
         } catch (Exception e) {
             logger.error("Error creating invoice in Swipe for order: " + order.getId(), e);
-            return null;
+            return errorResult("swipe", e.getMessage() != null ? e.getMessage() : "Unexpected error creating invoice", null);
         }
     }
     

@@ -13,8 +13,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api")
@@ -101,10 +103,24 @@ public class OrderController {
         if (!"PAID".equals(order.getPaymentStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        boolean hasProduct = order.getItems() != null && order.getItems().stream()
-                .anyMatch(item -> productId.equals(item.getProductId()));
-        if (!hasProduct) {
+        Optional<OrderDto.OrderItemDto> matchingItem = order.getItems() == null ? Optional.empty()
+                : order.getItems().stream()
+                        .filter(item -> productId.equals(item.getProductId()))
+                        .findFirst();
+        if (!matchingItem.isPresent()) {
             return ResponseEntity.notFound().build();
+        }
+        OrderDto.OrderItemDto item = matchingItem.get();
+        String url = item.getDigitalDownloadUrl();
+        if (url != null && !url.trim().isEmpty()) {
+            String filename = (item.getName() != null && !item.getName().isEmpty())
+                    ? item.getName().replaceAll("[^a-zA-Z0-9]", "_") + "_files.zip"
+                    : "product_" + productId + "_files.zip";
+            try {
+                return orderService.streamDigitalDownloadUrl(url, filename);
+            } catch (IOException e) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
         }
         return productService.downloadDigitalProductFiles(productId);
     }

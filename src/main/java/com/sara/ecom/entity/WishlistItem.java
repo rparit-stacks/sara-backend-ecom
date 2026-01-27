@@ -27,7 +27,7 @@ public class WishlistItem {
     private LocalDateTime createdAt;
     
     public enum ProductType {
-        PLAIN, DESIGNED, DIGITAL
+        PLAIN, DESIGNED, DIGITAL, CUSTOM
     }
     
     @PrePersist

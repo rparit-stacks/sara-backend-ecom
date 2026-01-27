@@ -34,6 +34,12 @@ public class OrderItem {
     @Column(name = "total_price", precision = 10, scale = 2)
     private BigDecimal totalPrice;
     
+    @Column(name = "gst_rate", precision = 10, scale = 2)
+    private BigDecimal gstRate;
+    
+    @Column(name = "gst_amount", precision = 10, scale = 2)
+    private BigDecimal gstAmount;
+    
     @Column(name = "variants_json", columnDefinition = "TEXT")
     private String variantsJson;
     
@@ -54,7 +60,11 @@ public class OrderItem {
     // For DIGITAL products - ZIP password
     @Column(name = "zip_password", columnDefinition = "TEXT")
     private String zipPassword;
-    
+
+    // For CUSTOM products - user-uploaded design URL
+    @Column(name = "uploaded_design_url", columnDefinition = "TEXT")
+    private String uploadedDesignUrl;
+
     // Getters and Setters
     public Long getId() {
         return id;
@@ -128,6 +138,22 @@ public class OrderItem {
         this.totalPrice = totalPrice;
     }
     
+    public BigDecimal getGstRate() {
+        return gstRate;
+    }
+    
+    public void setGstRate(BigDecimal gstRate) {
+        this.gstRate = gstRate;
+    }
+    
+    public BigDecimal getGstAmount() {
+        return gstAmount;
+    }
+    
+    public void setGstAmount(BigDecimal gstAmount) {
+        this.gstAmount = gstAmount;
+    }
+    
     public String getVariantsJson() {
         return variantsJson;
     }
@@ -174,5 +200,13 @@ public class OrderItem {
     
     public void setZipPassword(String zipPassword) {
         this.zipPassword = zipPassword;
+    }
+
+    public String getUploadedDesignUrl() {
+        return uploadedDesignUrl;
+    }
+
+    public void setUploadedDesignUrl(String uploadedDesignUrl) {
+        this.uploadedDesignUrl = uploadedDesignUrl;
     }
 }

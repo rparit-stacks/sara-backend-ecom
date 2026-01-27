@@ -5,6 +5,7 @@ import com.sara.ecom.dto.CouponRequest;
 import com.sara.ecom.service.CouponService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -17,6 +18,18 @@ public class CouponController {
     
     @Autowired
     private CouponService couponService;
+    
+    /** Eligible coupons for the current user and order total. Requires authentication. */
+    @GetMapping("/coupons/eligible")
+    public ResponseEntity<List<CouponDto>> getEligible(
+            Authentication authentication,
+            @RequestParam BigDecimal orderTotal) {
+        if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
+            return ResponseEntity.ok(List.of());
+        }
+        String userEmail = authentication.getName();
+        return ResponseEntity.ok(couponService.getEligible(orderTotal, userEmail));
+    }
     
     // Public endpoint for validating coupons
     @PostMapping("/coupons/validate")

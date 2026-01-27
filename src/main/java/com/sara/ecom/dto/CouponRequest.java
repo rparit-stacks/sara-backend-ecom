@@ -14,6 +14,8 @@ public class CouponRequest {
     private LocalDateTime validFrom;
     private LocalDateTime validUntil;
     private Boolean isActive;
+    private String applicability; // GLOBAL or USER_SPECIFIC
+    private String allowedUserEmail; // Required when applicability is USER_SPECIFIC
     
     // Getters and Setters
     public String getCode() { return code; }
@@ -36,4 +38,8 @@ public class CouponRequest {
     public void setValidUntil(LocalDateTime validUntil) { this.validUntil = validUntil; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public String getApplicability() { return applicability; }
+    public void setApplicability(String applicability) { this.applicability = applicability; }
+    public String getAllowedUserEmail() { return allowedUserEmail; }
+    public void setAllowedUserEmail(String allowedUserEmail) { this.allowedUserEmail = allowedUserEmail; }
 }

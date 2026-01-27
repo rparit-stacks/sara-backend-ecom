@@ -46,11 +46,23 @@ public class Coupon {
     @Column(name = "is_active")
     private Boolean isActive = true;
     
+    @Enumerated(EnumType.STRING)
+    @Column(name = "applicability", nullable = false)
+    private Applicability applicability = Applicability.GLOBAL;
+    
+    @Column(name = "allowed_user_email")
+    private String allowedUserEmail; // When applicability is USER_SPECIFIC, only this user can use the coupon
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
     public enum CouponType {
         PERCENTAGE, FIXED
+    }
+    
+    public enum Applicability {
+        GLOBAL,   // Any user can use (subject to other rules)
+        USER_SPECIFIC  // Only allowedUserEmail can use
     }
     
     @PrePersist
@@ -161,6 +173,22 @@ public class Coupon {
     
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+    
+    public Applicability getApplicability() {
+        return applicability;
+    }
+    
+    public void setApplicability(Applicability applicability) {
+        this.applicability = applicability;
+    }
+    
+    public String getAllowedUserEmail() {
+        return allowedUserEmail;
+    }
+    
+    public void setAllowedUserEmail(String allowedUserEmail) {
+        this.allowedUserEmail = allowedUserEmail;
     }
     
     public void incrementUsedCount() {

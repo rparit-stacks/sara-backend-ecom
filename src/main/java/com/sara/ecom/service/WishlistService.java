@@ -4,6 +4,7 @@ import com.sara.ecom.dto.EmailTemplateData;
 import com.sara.ecom.dto.PlainProductDto;
 import com.sara.ecom.dto.ProductDto;
 import com.sara.ecom.dto.WishlistDto;
+import com.sara.ecom.entity.CustomProduct;
 import com.sara.ecom.entity.User;
 import com.sara.ecom.entity.WishlistItem;
 import com.sara.ecom.repository.UserRepository;
@@ -27,6 +28,9 @@ public class WishlistService {
     
     @Autowired
     private PlainProductService plainProductService;
+    
+    @Autowired
+    private CustomProductService customProductService;
     
     @Autowired
     private EmailService emailService;
@@ -55,10 +59,6 @@ public class WishlistService {
         item.setProductId(productId);
         
         WishlistDto wishlistDto = toWishlistDto(wishlistItemRepository.save(item));
-        
-        // Note: CustomProducts cannot be added to wishlist as WishlistItem.ProductType enum
-        // only includes PLAIN, DESIGNED, DIGITAL. CustomProducts are user-specific and
-        // are saved when added to cart (see CartService.addToCart).
         
         // Send email notification
         try {
@@ -140,6 +140,11 @@ public class WishlistService {
                 dto.setProductImage(plainProduct.getImage());
                 dto.setProductPrice(plainProduct.getPricePerMeter() != null ? 
                     "₹" + plainProduct.getPricePerMeter().toString() : "₹0");
+            } else if (item.getProductType() == WishlistItem.ProductType.CUSTOM) {
+                CustomProduct customProduct = customProductService.getCustomProductById(item.getProductId(), item.getUserEmail());
+                dto.setProductName(customProduct.getProductName() != null ? customProduct.getProductName() : "Custom Design");
+                dto.setProductImage(customProduct.getDesignUrl() != null ? customProduct.getDesignUrl() : "");
+                dto.setProductPrice(customProduct.getDesignPrice() != null ? "₹" + customProduct.getDesignPrice().toString() : "₹0");
             } else {
                 // For DESIGNED or DIGITAL products
                 ProductDto product = productService.getProductById(item.getProductId());

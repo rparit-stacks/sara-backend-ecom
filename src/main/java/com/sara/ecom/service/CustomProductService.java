@@ -5,6 +5,7 @@ import com.sara.ecom.repository.CustomProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -42,17 +43,21 @@ public class CustomProductService {
     
     /**
      * Marks a custom product as saved.
+     * Uses REQUIRES_NEW so that when called from add-to-cart, failure to find/save
+     * does not mark the cart transaction rollback-only.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CustomProduct saveCustomProduct(Long id, String userEmail) {
         CustomProduct customProduct = customProductRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Custom product not found"));
-        
-        // Verify ownership
-        if (!customProduct.getUserEmail().equals(userEmail)) {
+
+        // Verify ownership (case-insensitive for email)
+        String u = (userEmail != null) ? userEmail.trim().toLowerCase() : "";
+        String p = (customProduct.getUserEmail() != null) ? customProduct.getUserEmail().trim().toLowerCase() : "";
+        if (!u.equals(p)) {
             throw new RuntimeException("Unauthorized: You can only save your own custom products");
         }
-        
+
         customProduct.setIsSaved(true);
         return customProductRepository.save(customProduct);
     }
@@ -94,17 +99,20 @@ public class CustomProductService {
     
     /**
      * Gets a custom product by ID (only if user owns it).
+     * Uses case-insensitive email comparison so token/query param casing does not cause mismatch.
      */
     @Transactional(readOnly = true)
     public CustomProduct getCustomProductById(Long id, String userEmail) {
         CustomProduct customProduct = customProductRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Custom product not found"));
-        
-        // Verify ownership
-        if (!customProduct.getUserEmail().equals(userEmail)) {
+
+        // Verify ownership (case-insensitive)
+        String u = (userEmail != null) ? userEmail.trim().toLowerCase() : "";
+        String p = (customProduct.getUserEmail() != null) ? customProduct.getUserEmail().trim().toLowerCase() : "";
+        if (!u.equals(p)) {
             throw new RuntimeException("Unauthorized: You can only access your own custom products");
         }
-        
+
         return customProduct;
     }
     

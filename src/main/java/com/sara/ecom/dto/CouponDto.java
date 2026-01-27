@@ -16,6 +16,8 @@ public class CouponDto {
     private LocalDateTime validFrom;
     private LocalDateTime validUntil;
     private Boolean isActive;
+    private String applicability;
+    private String allowedUserEmail;
     
     // For validation response
     private Boolean valid;
@@ -47,6 +49,10 @@ public class CouponDto {
     public void setValidUntil(LocalDateTime validUntil) { this.validUntil = validUntil; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public String getApplicability() { return applicability; }
+    public void setApplicability(String applicability) { this.applicability = applicability; }
+    public String getAllowedUserEmail() { return allowedUserEmail; }
+    public void setAllowedUserEmail(String allowedUserEmail) { this.allowedUserEmail = allowedUserEmail; }
     public Boolean getValid() { return valid; }
     public void setValid(Boolean valid) { this.valid = valid; }
     public String getMessage() { return message; }

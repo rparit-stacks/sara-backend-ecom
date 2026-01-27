@@ -30,18 +30,16 @@ public class CustomProductController {
     public ResponseEntity<CustomProduct> createCustomProduct(
             @RequestBody ProductRequest request,
             Authentication authentication) {
-        // Get user email from authentication if available, otherwise use temporary identifier
+        // Get user email from authentication if available, otherwise use temporary identifier.
+        // Store normalized (lowercase) so GET/save ownership checks match.
         String userEmail;
         if (authentication != null && authentication.getName() != null) {
-            userEmail = authentication.getName();
+            userEmail = authentication.getName().trim().toLowerCase();
         } else {
             // For guest users, use a temporary identifier
-            // If email provided in request, use it; otherwise generate temp ID
             if (request.getUserEmail() != null && !request.getUserEmail().trim().isEmpty()) {
                 userEmail = request.getUserEmail().trim().toLowerCase();
             } else {
-                // Generate temporary identifier for guest users
-                // Format: guest_timestamp_random
                 userEmail = "guest_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
             }
         }
@@ -165,16 +163,16 @@ public class CustomProductController {
             @PathVariable Long id,
             @RequestParam(required = false) String userEmail,
             Authentication authentication) {
-        // Get user email from authentication or request parameter
+        // Get user email from authentication or request parameter (normalized lowercase)
         String email;
         if (authentication != null && authentication.getName() != null) {
-            email = authentication.getName();
+            email = authentication.getName().trim().toLowerCase();
         } else if (userEmail != null && !userEmail.trim().isEmpty()) {
             email = userEmail.trim().toLowerCase();
         } else {
             return ResponseEntity.status(400).build(); // Bad request - need userEmail
         }
-        
+
         CustomProduct product = customProductService.getCustomProductById(id, email);
         return ResponseEntity.ok(product);
     }

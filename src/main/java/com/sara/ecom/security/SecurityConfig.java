@@ -66,10 +66,12 @@ public class SecurityConfig {
                 .requestMatchers("/api/blogs/**").permitAll()
                 .requestMatchers("/api/faqs/**").permitAll()
                 .requestMatchers("/api/custom-config").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/custom-design-requests/upload-reference").permitAll()
                 .requestMatchers("/api/custom-design-requests").permitAll()
                 .requestMatchers("/api/testimonials/**").permitAll()
                 .requestMatchers("/api/subscribe").permitAll()
                 .requestMatchers("/api/instagram/thumbnail").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/coupons/eligible").authenticated()
                 .requestMatchers("/api/coupons/validate").permitAll()
                 .requestMatchers("/api/currency/**").permitAll() // Allow public access to currency rates
                 .requestMatchers(HttpMethod.POST, "/api/custom-products").permitAll() // Allow anyone to create custom products

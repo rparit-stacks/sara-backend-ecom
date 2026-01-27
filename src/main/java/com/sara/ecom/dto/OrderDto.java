@@ -62,6 +62,8 @@ public class OrderDto {
         private BigDecimal price;
         private Integer quantity;
         private BigDecimal totalPrice;
+        private BigDecimal gstRate;
+        private BigDecimal gstAmount;
         private Map<String, String> variants; // Legacy format for backward compatibility
         private Map<String, VariantSelectionDto> variantSelections; // New structured format
         private List<VariantDisplayInfo> variantDisplay; // Resolved variant/option names for display
@@ -72,7 +74,8 @@ public class OrderDto {
         private Long fabricId;
         private String digitalDownloadUrl;
         private String zipPassword;
-        
+        private String uploadedDesignUrl;
+
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
         public String getProductType() { return productType; }
@@ -89,6 +92,10 @@ public class OrderDto {
         public void setQuantity(Integer quantity) { this.quantity = quantity; }
         public BigDecimal getTotalPrice() { return totalPrice; }
         public void setTotalPrice(BigDecimal totalPrice) { this.totalPrice = totalPrice; }
+        public BigDecimal getGstRate() { return gstRate; }
+        public void setGstRate(BigDecimal gstRate) { this.gstRate = gstRate; }
+        public BigDecimal getGstAmount() { return gstAmount; }
+        public void setGstAmount(BigDecimal gstAmount) { this.gstAmount = gstAmount; }
         public Map<String, String> getVariants() { return variants; }
         public void setVariants(Map<String, String> variants) { this.variants = variants; }
         public Map<String, VariantSelectionDto> getVariantSelections() { return variantSelections; }
@@ -107,8 +114,10 @@ public class OrderDto {
         public void setDigitalDownloadUrl(String digitalDownloadUrl) { this.digitalDownloadUrl = digitalDownloadUrl; }
         public String getZipPassword() { return zipPassword; }
         public void setZipPassword(String zipPassword) { this.zipPassword = zipPassword; }
+        public String getUploadedDesignUrl() { return uploadedDesignUrl; }
+        public void setUploadedDesignUrl(String uploadedDesignUrl) { this.uploadedDesignUrl = uploadedDesignUrl; }
     }
-    
+
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

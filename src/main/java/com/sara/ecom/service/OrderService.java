@@ -20,12 +20,23 @@ import com.sara.ecom.entity.User;
 import com.sara.ecom.repository.OrderRepository;
 import com.sara.ecom.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -362,9 +373,12 @@ public class OrderService {
             orderItem.setPrice(cartItem.getUnitPrice());
             orderItem.setQuantity(cartItem.getQuantity());
             orderItem.setTotalPrice(cartItem.getTotalPrice());
+            orderItem.setGstRate(cartItem.getGstRate());
+            orderItem.setGstAmount(cartItem.getGstAmount());
             orderItem.setDesignId(cartItem.getDesignId());
             orderItem.setFabricId(cartItem.getFabricId());
-            
+            orderItem.setUploadedDesignUrl(cartItem.getUploadedDesignUrl());
+
             if (cartItem.getVariants() != null) {
                 try {
                     orderItem.setVariantsJson(objectMapper.writeValueAsString(cartItem.getVariants()));
@@ -899,6 +913,39 @@ public class OrderService {
                     e.printStackTrace();
                 }
             }
+        }
+    }
+
+    /**
+     * Fetches the resource at the given URL and returns it as a response with
+     * Content-Disposition so the browser saves it with the correct filename (e.g. .zip).
+     * Used when the order item already has a stored digitalDownloadUrl (e.g. Cloudinary).
+     */
+    public ResponseEntity<Resource> streamDigitalDownloadUrl(String url, String filename) throws IOException {
+        URL urlObj = URI.create(url).toURL();
+        HttpURLConnection connection = (HttpURLConnection) urlObj.openConnection();
+        connection.setRequestMethod("GET");
+        connection.setConnectTimeout(10000);
+        connection.setReadTimeout(60000);
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+        if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            throw new IOException("Failed to fetch URL: " + connection.getResponseCode());
+        }
+        try (InputStream in = connection.getInputStream(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            byte[] bytes = out.toByteArray();
+            Resource resource = new ByteArrayResource(bytes);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .contentLength(bytes.length)
+                    .body(resource);
+        } finally {
+            connection.disconnect();
         }
     }
     
@@ -1525,11 +1572,14 @@ public class OrderService {
         dto.setPrice(item.getPrice());
         dto.setQuantity(item.getQuantity());
         dto.setTotalPrice(item.getTotalPrice());
+        dto.setGstRate(item.getGstRate());
+        dto.setGstAmount(item.getGstAmount());
         dto.setDesignId(item.getDesignId());
         dto.setFabricId(item.getFabricId());
         dto.setDigitalDownloadUrl(item.getDigitalDownloadUrl());
         dto.setZipPassword(item.getZipPassword());
-        
+        dto.setUploadedDesignUrl(item.getUploadedDesignUrl());
+
         // Parse variants - try structured format first, fallback to legacy format
         if (item.getVariantsJson() != null && !item.getVariantsJson().isEmpty()) {
             try {
@@ -1558,12 +1608,22 @@ public class OrderService {
                     dto.setVariantDisplay(variantDisplay);
                 } else {
                     // Fallback to legacy format
-                    dto.setVariants(objectMapper.readValue(item.getVariantsJson(), new TypeReference<Map<String, String>>() {}));
+                    Map<String, String> legacyVariants = objectMapper.readValue(item.getVariantsJson(), new TypeReference<Map<String, String>>() {});
+                    dto.setVariants(legacyVariants);
+                    List<VariantDisplayInfo> fromLegacy = resolveVariantNamesFromLegacy(item.getProductId(), legacyVariants);
+                    if (!fromLegacy.isEmpty()) {
+                        dto.setVariantDisplay(fromLegacy);
+                    }
                 }
             } catch (JsonProcessingException e) {
                 // If structured format fails, try legacy format
                 try {
-                    dto.setVariants(objectMapper.readValue(item.getVariantsJson(), new TypeReference<Map<String, String>>() {}));
+                    Map<String, String> legacyVariants = objectMapper.readValue(item.getVariantsJson(), new TypeReference<Map<String, String>>() {});
+                    dto.setVariants(legacyVariants);
+                    List<VariantDisplayInfo> fromLegacy = resolveVariantNamesFromLegacy(item.getProductId(), legacyVariants);
+                    if (!fromLegacy.isEmpty()) {
+                        dto.setVariantDisplay(fromLegacy);
+                    }
                 } catch (JsonProcessingException e2) {
                     dto.setVariants(new HashMap<>());
                 }
@@ -1710,6 +1770,73 @@ public class OrderService {
             }
         }
         
+        return displayList;
+    }
+
+    /**
+     * Builds variant display names from legacy format (Map variantIdOrKey -> optionValue).
+     * Used when variantsJson is legacy only, so frontend can show variant names instead of P#.
+     */
+    private List<VariantDisplayInfo> resolveVariantNamesFromLegacy(Long productId, Map<String, String> legacyVariants) {
+        List<VariantDisplayInfo> displayList = new ArrayList<>();
+        if (productId == null || legacyVariants == null || legacyVariants.isEmpty()) {
+            return displayList;
+        }
+        try {
+            com.sara.ecom.entity.Product product = productRepository.findById(productId).orElse(null);
+            if (product == null || product.getVariants() == null) {
+                return displayList;
+            }
+            for (Map.Entry<String, String> entry : legacyVariants.entrySet()) {
+                String key = entry.getKey();
+                String optionValue = entry.getValue();
+                if (optionValue == null) continue;
+                VariantDisplayInfo info = new VariantDisplayInfo();
+                info.setOptionValue(optionValue);
+                info.setVariantName("Variant");
+                info.setPriceModifier(null);
+                try {
+                    Long variantId = Long.parseLong(key);
+                    com.sara.ecom.entity.ProductVariant variant = product.getVariants().stream()
+                            .filter(v -> v.getId() != null && v.getId().equals(variantId))
+                            .findFirst()
+                            .orElse(null);
+                    if (variant != null) {
+                        info.setVariantName(variant.getName());
+                        info.setVariantType(variant.getType());
+                        info.setVariantUnit(variant.getUnit());
+                        if (variant.getOptions() != null) {
+                            com.sara.ecom.entity.ProductVariantOption option = variant.getOptions().stream()
+                                    .filter(o -> optionValue.equals(o.getValue()))
+                                    .findFirst()
+                                    .orElse(variant.getOptions().stream().findFirst().orElse(null));
+                            if (option != null) {
+                                info.setOptionValue(option.getValue());
+                                info.setPriceModifier(option.getPriceModifier());
+                            }
+                        }
+                    }
+                } catch (NumberFormatException ignored) {
+                    for (com.sara.ecom.entity.ProductVariant v : product.getVariants()) {
+                        if (key.equals(v.getFrontendId()) && v.getOptions() != null) {
+                            info.setVariantName(v.getName());
+                            info.setVariantType(v.getType());
+                            info.setVariantUnit(v.getUnit());
+                            com.sara.ecom.entity.ProductVariantOption opt = v.getOptions().stream()
+                                    .filter(o -> optionValue.equals(o.getValue())).findFirst().orElse(v.getOptions().stream().findFirst().orElse(null));
+                            if (opt != null) {
+                                info.setOptionValue(opt.getValue());
+                                info.setPriceModifier(opt.getPriceModifier());
+                            }
+                            break;
+                        }
+                    }
+                }
+                displayList.add(info);
+            }
+        } catch (Exception e) {
+            // Return empty on any error
+        }
         return displayList;
     }
     

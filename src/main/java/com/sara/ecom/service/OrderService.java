@@ -823,44 +823,14 @@ public class OrderService {
             return;
         }
         
-        // Get user email and phone for password generation
+        // ZIP password = user's registered email
         String userEmail = order.getUserEmail();
         User user = userRepository.findByEmail(userEmail).orElse(null);
         if (user == null) {
             System.err.println("User not found for order: " + order.getId());
             return;
         }
-        
-        String phoneNumber = user.getPhoneNumber();
-        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
-            // Try to get phone from shipping address
-            try {
-                if (order.getShippingAddress() != null) {
-                    Map<String, Object> shippingAddr = objectMapper.readValue(order.getShippingAddress(), new TypeReference<Map<String, Object>>() {});
-                    phoneNumber = (String) shippingAddr.get("phone");
-                }
-            } catch (Exception e) {
-                System.err.println("Failed to parse shipping address for phone: " + e.getMessage());
-            }
-        }
-        
-        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
-            System.err.println("Phone number not available for password generation in order: " + order.getId());
-            return;
-        }
-        
-        // Generate password: First 4 letters of email username (uppercase) + Last 4 digits of mobile
-        String emailUsername = userEmail.split("@")[0].toLowerCase();
-        String first4Letters = emailUsername.length() >= 4 
-            ? emailUsername.substring(0, 4).toUpperCase() 
-            : emailUsername.toUpperCase();
-        
-        String phoneDigits = phoneNumber.replaceAll("\\D", ""); // Remove non-digits
-        String last4Digits = phoneDigits.length() >= 4 
-            ? phoneDigits.substring(phoneDigits.length() - 4) 
-            : phoneDigits;
-        
-        String zipPassword = first4Letters + last4Digits;
+        String zipPassword = user.getEmail();
         
         // Process each order item
         for (OrderItem item : order.getItems()) {

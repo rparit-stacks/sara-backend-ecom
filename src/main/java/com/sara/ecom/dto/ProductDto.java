@@ -1,6 +1,7 @@
 package com.sara.ecom.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -42,6 +43,7 @@ public class ProductDto {
     private BigDecimal originalPrice;
     private BigDecimal gstRate;
     private String hsnCode;
+    private LocalDateTime createdAt;
     
     public static class DetailSectionDto {
         private Long id;
@@ -479,6 +481,14 @@ public class ProductDto {
     
     public void setHsnCode(String hsnCode) {
         this.hsnCode = hsnCode;
+    }
+    
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+    
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
     
     public List<PricingSlabDto> getPricingSlabs() {

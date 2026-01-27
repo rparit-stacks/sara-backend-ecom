@@ -51,6 +51,15 @@ public class GlobalExceptionHandler {
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
+
+    @ExceptionHandler(InvalidSessionException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidSessionException(InvalidSessionException ex) {
+        logger.warn("Invalid session (user not found for token): {}", ex.getMessage());
+        Map<String, String> error = new HashMap<>();
+        error.put("error", "Session invalid. Please log in again.");
+        error.put("errorCode", "USER_NOT_FOUND");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
     
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {

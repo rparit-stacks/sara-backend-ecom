@@ -2,6 +2,7 @@ package com.sara.ecom.controller;
 
 import com.sara.ecom.dto.AddToCartRequest;
 import com.sara.ecom.dto.CartDto;
+import com.sara.ecom.exception.InvalidSessionException;
 import com.sara.ecom.repository.UserRepository;
 import com.sara.ecom.service.CartService;
 import com.sara.ecom.service.JwtService;
@@ -80,7 +81,7 @@ public class CartController {
         // Normalize email to lowercase to match how it's stored in database
         String normalizedEmail = email != null ? email.toLowerCase().trim() : email;
         userRepository.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new InvalidSessionException("User not found"));
         return normalizedEmail;
     }
 }

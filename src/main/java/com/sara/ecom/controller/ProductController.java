@@ -5,6 +5,8 @@ import com.sara.ecom.dto.ProductRequest;
 import com.sara.ecom.entity.Product;
 import com.sara.ecom.service.ProductService;
 import com.sara.ecom.service.JwtService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +18,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api")
 public class ProductController {
+    
+    private static final Logger log = LoggerFactory.getLogger(ProductController.class);
     
     @Autowired
     private ProductService productService;
@@ -168,8 +172,24 @@ public class ProductController {
         try {
             return productService.exportProductsToExcel();
         } catch (Exception e) {
+            log.error("Product export failed: {}", e.getMessage(), e);
             return ResponseEntity.status(500).build();
         }
+    }
+
+    /**
+     * Bulk copy products. Each copy gets name with "-copy" (or "-copy-2", etc.) and a new slug.
+     */
+    @PostMapping("/admin/products/bulk/copy")
+    public ResponseEntity<Map<String, Object>> bulkCopyProducts(@RequestBody Map<String, Object> request) {
+        @SuppressWarnings("unchecked")
+        List<Number> idsRaw = (List<Number>) request.get("ids");
+        if (idsRaw == null || idsRaw.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Product IDs are required"));
+        }
+        List<Long> ids = idsRaw.stream().map(Number::longValue).toList();
+        Map<String, Object> result = productService.copyProducts(ids);
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/admin/products/plain")

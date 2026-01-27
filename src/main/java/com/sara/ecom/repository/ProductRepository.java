@@ -48,6 +48,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     
     boolean existsBySlug(String slug);
     
+    boolean existsByName(String name);
+    
     @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.images WHERE p.status = :status")
     List<Product> findAllWithImagesByStatus(@Param("status") Product.Status status);
     

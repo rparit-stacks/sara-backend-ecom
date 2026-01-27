@@ -27,7 +27,7 @@ public class AdminProductController {
             System.out.println("[Product Media Upload] Received " + files.length + " files");
             
             List<Map<String, String>> uploadedFiles = new ArrayList<>();
-            List<String> errors = new ArrayList<>();
+            List<Map<String, Object>> errorDetails = new ArrayList<>();
             
             for (MultipartFile file : files) {
                 try {
@@ -50,12 +50,15 @@ public class AdminProductController {
                     System.err.println("[Product Media Upload] Error uploading " + file.getOriginalFilename() + ": " + e.getMessage());
                     String errorMessage = e.getMessage();
                     String source = "system";
+                    String userMessage = errorMessage != null ? errorMessage : "Failed to upload file";
                     
                     if (errorMessage != null) {
-                        if (errorMessage.contains("File size exceeds")) {
+                        if (errorMessage.contains("File size exceeds") || errorMessage.contains("10MB") || errorMessage.contains("size")) {
                             source = "validation";
-                        } else if (errorMessage.contains("Cloudinary error")) {
+                            userMessage = "Upload failed: Cloudinary supports max 10MB. Please adjust file size or upgrade Cloudinary limits.";
+                        } else if (errorMessage.contains("Cloudinary error") || errorMessage.contains("Cloudinary")) {
                             source = "cloudinary";
+                            userMessage = "Upload failed: Cloudinary supports max 10MB. Please adjust file size or upgrade Cloudinary limits.";
                         }
                     }
                     
@@ -63,20 +66,26 @@ public class AdminProductController {
                     errorDetail.put("filename", file.getOriginalFilename());
                     errorDetail.put("error", errorMessage != null ? errorMessage : "Failed to upload file");
                     errorDetail.put("source", source);
+                    errorDetail.put("userMessage", userMessage);
                     errorDetail.put("fileSize", file.getSize());
                     errorDetail.put("maxSize", 10 * 1024 * 1024L);
                     
-                    errors.add(errorDetail.toString());
+                    errorDetails.add(errorDetail);
                 } catch (Exception e) {
                     System.err.println("[Product Media Upload] Error uploading " + file.getOriginalFilename() + ": " + e.getMessage());
-                    errors.add("Failed to upload " + file.getOriginalFilename() + ": " + e.getMessage());
+                    Map<String, Object> fallback = new HashMap<>();
+                    fallback.put("filename", file.getOriginalFilename());
+                    fallback.put("error", e.getMessage() != null ? e.getMessage() : "Failed to upload file");
+                    fallback.put("source", "system");
+                    fallback.put("userMessage", "Upload failed. Please check your connection and try again.");
+                    errorDetails.add(fallback);
                 }
             }
             
             Map<String, Object> response = new HashMap<>();
             response.put("files", uploadedFiles);
-            if (!errors.isEmpty()) {
-                response.put("errors", errors);
+            if (!errorDetails.isEmpty()) {
+                response.put("errors", errorDetails);
             }
             
             return ResponseEntity.ok(response);

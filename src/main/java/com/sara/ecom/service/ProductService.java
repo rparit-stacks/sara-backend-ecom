@@ -30,7 +30,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -863,8 +865,12 @@ public class ProductService {
             }
             row.createCell(11).setCellValue(description);
             
-            // Created at (if available in DTO, otherwise empty)
-            row.createCell(12).setCellValue("");
+            // Created at
+            String createdAtStr = "";
+            if (product.getCreatedAt() != null) {
+                createdAtStr = product.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            }
+            row.createCell(12).setCellValue(createdAtStr);
         }
         
         // Auto-size columns
@@ -892,6 +898,182 @@ public class ProductService {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .contentLength(excelBytes.length)
                 .body(resource);
+    }
+    
+    /**
+     * Bulk copy products. Each copy gets name with "-copy" (or "-copy-2", etc.) and a new slug.
+     * Returns map with "message", "copied", "failed", "errors" (list of "id: reason").
+     */
+    @Transactional
+    public Map<String, Object> copyProducts(List<Long> ids) {
+        int copied = 0;
+        int failed = 0;
+        List<String> errors = new ArrayList<>();
+        for (Long id : ids) {
+            try {
+                copyProduct(id);
+                copied++;
+            } catch (Exception e) {
+                failed++;
+                errors.add(id + ": " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+            }
+        }
+        Map<String, Object> result = new HashMap<>();
+        result.put("message", "Copy complete. " + copied + " copied, " + failed + " failed.");
+        result.put("copied", copied);
+        result.put("failed", failed);
+        result.put("errors", errors);
+        return result;
+    }
+    
+    /**
+     * Copy a single product by id. Loads full product, builds ProductRequest with name "-copy",
+     * and creates via createPlainProduct/createDesignedProduct/createDigitalProduct.
+     */
+    @Transactional
+    public void copyProduct(Long id) {
+        Product product = loadProductForCopy(id);
+        ProductRequest request = productToRequest(product);
+        String baseName = product.getName() != null ? product.getName() : "Product";
+        String copyName = baseName + "-copy";
+        int n = 1;
+        while (productRepository.existsByName(copyName)) {
+            copyName = baseName + "-copy-" + (++n);
+        }
+        request.setName(copyName);
+        request.setStatus("ACTIVE");
+        switch (product.getType()) {
+            case PLAIN:
+                createPlainProduct(request);
+                break;
+            case DESIGNED:
+                createDesignedProduct(request);
+                break;
+            case DIGITAL:
+                createDigitalProduct(request);
+                break;
+        }
+    }
+    
+    /** Load product with all relations needed for copy (no accessibility check). */
+    private Product loadProductForCopy(Long id) {
+        Product product = productRepository.findByIdWithImages(id)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+        productRepository.findByIdWithDetailSections(id).ifPresent(p -> product.setDetailSections(p.getDetailSections()));
+        productRepository.findByIdWithCustomFields(id).ifPresent(p -> product.setCustomFields(p.getCustomFields()));
+        productRepository.findByIdWithVariants(id).ifPresent(p -> product.setVariants(p.getVariants()));
+        return product;
+    }
+    
+    /** Build ProductRequest from Product entity for copy (omits ids in nested objects). */
+    private ProductRequest productToRequest(Product product) {
+        ProductRequest request = new ProductRequest();
+        request.setType(product.getType().name());
+        request.setCategoryId(product.getCategoryId());
+        request.setDescription(product.getDescription());
+        request.setIsNew(product.getIsNew());
+        request.setIsSale(product.getIsSale());
+        request.setOriginalPrice(product.getOriginalPrice());
+        request.setGstRate(product.getGstRate());
+        request.setHsnCode(product.getHsnCode());
+        if (product.getImages() != null && !product.getImages().isEmpty()) {
+            List<ProductRequest.MediaRequest> mediaList = new ArrayList<>();
+            int order = 0;
+            for (ProductImage img : product.getImages()) {
+                ProductRequest.MediaRequest m = new ProductRequest.MediaRequest();
+                m.setUrl(img.getImageUrl());
+                m.setType(img.getMediaType() != null && img.getMediaType() == ProductImage.MediaType.VIDEO ? "video" : "image");
+                m.setDisplayOrder(img.getDisplayOrder() != null ? img.getDisplayOrder() : order);
+                mediaList.add(m);
+                order++;
+            }
+            request.setMedia(mediaList);
+        }
+        if (product.getDetailSections() != null && !product.getDetailSections().isEmpty()) {
+            List<ProductRequest.DetailSectionRequest> sections = new ArrayList<>();
+            for (ProductDetailSection s : product.getDetailSections()) {
+                ProductRequest.DetailSectionRequest ds = new ProductRequest.DetailSectionRequest();
+                ds.setTitle(s.getTitle());
+                ds.setContent(s.getContent());
+                ds.setDisplayOrder(s.getDisplayOrder() != null ? s.getDisplayOrder() : 0);
+                sections.add(ds);
+            }
+            request.setDetailSections(sections);
+        }
+        if (product.getCustomFields() != null && !product.getCustomFields().isEmpty()) {
+            List<ProductRequest.CustomFieldRequest> fields = new ArrayList<>();
+            for (ProductCustomField f : product.getCustomFields()) {
+                ProductRequest.CustomFieldRequest cf = new ProductRequest.CustomFieldRequest();
+                cf.setLabel(f.getLabel());
+                cf.setFieldType(f.getFieldType() != null ? f.getFieldType() : "text");
+                cf.setPlaceholder(f.getPlaceholder());
+                cf.setRequired(f.isRequired());
+                fields.add(cf);
+            }
+            request.setCustomFields(fields);
+        }
+        if (product.getVariants() != null && !product.getVariants().isEmpty()) {
+            List<ProductRequest.VariantRequest> variants = new ArrayList<>();
+            for (ProductVariant v : product.getVariants()) {
+                ProductRequest.VariantRequest vr = new ProductRequest.VariantRequest();
+                vr.setName(v.getName());
+                vr.setType(v.getType() != null ? v.getType() : "text");
+                vr.setUnit(v.getUnit());
+                vr.setFrontendId(v.getFrontendId());
+                vr.setDisplayOrder(v.getDisplayOrder() != null ? v.getDisplayOrder() : 0);
+                if (v.getOptions() != null && !v.getOptions().isEmpty()) {
+                    List<ProductRequest.VariantOptionRequest> opts = new ArrayList<>();
+                    int oi = 0;
+                    for (ProductVariantOption o : v.getOptions()) {
+                        ProductRequest.VariantOptionRequest vor = new ProductRequest.VariantOptionRequest();
+                        vor.setValue(o.getValue());
+                        vor.setPriceModifier(o.getPriceModifier() != null ? o.getPriceModifier() : BigDecimal.ZERO);
+                        vor.setFrontendId(o.getFrontendId());
+                        vor.setDisplayOrder(o.getDisplayOrder() != null ? o.getDisplayOrder() : oi);
+                        opts.add(vor);
+                        oi++;
+                    }
+                    vr.setOptions(opts);
+                }
+                variants.add(vr);
+            }
+            request.setVariants(variants);
+        }
+        switch (product.getType()) {
+            case DESIGNED:
+                request.setDesignPrice(product.getDesignPrice());
+                request.setDesignId(product.getDesignId());
+                if (product.getRecommendedFabricIds() != null && !product.getRecommendedFabricIds().isEmpty()) {
+                    request.setRecommendedFabricIds(new ArrayList<>(product.getRecommendedFabricIds()));
+                }
+                if (product.getPricingSlabs() != null && !product.getPricingSlabs().isEmpty()) {
+                    List<ProductRequest.PricingSlabRequest> slabs = new ArrayList<>();
+                    int si = 0;
+                    for (ProductPricingSlab ps : product.getPricingSlabs()) {
+                        ProductRequest.PricingSlabRequest pr = new ProductRequest.PricingSlabRequest();
+                        pr.setMinQuantity(ps.getMinQuantity());
+                        pr.setMaxQuantity(ps.getMaxQuantity());
+                        pr.setDiscountType(ps.getDiscountType() != null ? ps.getDiscountType().name() : "FIXED_AMOUNT");
+                        pr.setDiscountValue(ps.getDiscountValue());
+                        pr.setDisplayOrder(ps.getDisplayOrder() != null ? ps.getDisplayOrder() : si);
+                        pr.setPricePerMeter(ps.getPricePerMeter());
+                        slabs.add(pr);
+                        si++;
+                    }
+                    request.setPricingSlabs(slabs);
+                }
+                break;
+            case PLAIN:
+                request.setPlainProductId(product.getPlainProductId());
+                request.setPrice(product.getPrice());
+                request.setPricePerMeter(product.getPrice());
+                break;
+            case DIGITAL:
+                request.setPrice(product.getPrice());
+                request.setFileUrl(product.getFileUrl());
+                break;
+        }
+        return request;
     }
     
     private void mapRequestToProduct(ProductRequest request, Product product) {
@@ -1154,6 +1336,7 @@ public class ProductService {
         dto.setPrice(product.getPrice());
         dto.setGstRate(product.getGstRate());
         dto.setHsnCode(product.getHsnCode());
+        dto.setCreatedAt(product.getCreatedAt());
         
         // Get category name
         if (product.getCategoryId() != null) {
@@ -1443,7 +1626,7 @@ public class ProductService {
      */
     @Transactional
     public String generatePasswordProtectedZip(Long productId, String password) throws IOException {
-        Product product = productRepository.findById(productId)
+        Product product = productRepository.findByIdWithImages(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
         
         if (product.getType() != Product.ProductType.DIGITAL) {
@@ -1452,7 +1635,7 @@ public class ProductService {
         
         List<String> fileUrls = new ArrayList<>();
         
-        // Get all file URLs from fileUrl field
+        // 1. Digital file(s) from fileUrl field
         String fileUrl = product.getFileUrl();
         if (fileUrl != null && !fileUrl.trim().isEmpty()) {
             try {
@@ -1489,7 +1672,22 @@ public class ProductService {
             }
         }
         
-        // If created from design product, add all images from source
+        // 2. This product's gallery images (in display order)
+        if (product.getImages() != null && !product.getImages().isEmpty()) {
+            List<ProductImage> images = product.getImages().stream()
+                    .sorted((a, b) -> Integer.compare(
+                            a.getDisplayOrder() != null ? a.getDisplayOrder() : 0,
+                            b.getDisplayOrder() != null ? b.getDisplayOrder() : 0))
+                    .collect(Collectors.toList());
+            for (ProductImage img : images) {
+                String imgUrl = img.getImageUrl();
+                if (imgUrl != null && !imgUrl.trim().isEmpty() && !fileUrls.contains(imgUrl)) {
+                    fileUrls.add(imgUrl);
+                }
+            }
+        }
+        
+        // 3. If created from design product, add all images from source
         if (product.getSourceDesignProductId() != null) {
             Product sourceDesignProduct = productRepository.findByIdWithImages(product.getSourceDesignProductId())
                     .orElse(null);

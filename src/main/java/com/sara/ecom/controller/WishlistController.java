@@ -1,6 +1,7 @@
 package com.sara.ecom.controller;
 
 import com.sara.ecom.dto.WishlistDto;
+import com.sara.ecom.exception.InvalidSessionException;
 import com.sara.ecom.repository.UserRepository;
 import com.sara.ecom.service.JwtService;
 import com.sara.ecom.service.WishlistService;
@@ -75,7 +76,7 @@ public class WishlistController {
         // Normalize email to lowercase to match how it's stored in database
         String normalizedEmail = email != null ? email.toLowerCase().trim() : email;
         userRepository.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new InvalidSessionException("User not found"));
         return normalizedEmail;
     }
 }

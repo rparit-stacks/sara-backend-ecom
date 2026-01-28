@@ -23,6 +23,7 @@ public class ProductRequest {
     
     // For PLAIN products
     private Long plainProductId;
+    private String unitExtension;
     
     // For DIGITAL products
     private BigDecimal price;
@@ -348,6 +349,14 @@ public class ProductRequest {
 
     public void setPlainProductId(Long plainProductId) {
         this.plainProductId = plainProductId;
+    }
+
+    public String getUnitExtension() {
+        return unitExtension;
+    }
+
+    public void setUnitExtension(String unitExtension) {
+        this.unitExtension = unitExtension;
     }
 
     public BigDecimal getPrice() {

@@ -1115,6 +1115,11 @@ public class ProductService {
         
         product.setIsNew(request.getIsNew() != null ? request.getIsNew() : false);
         product.setIsSale(request.getIsSale() != null ? request.getIsSale() : false);
+
+        // Set unit extension (for PLAIN and other types that use it)
+        if (request.getUnitExtension() != null && !request.getUnitExtension().trim().isEmpty()) {
+            product.setUnitExtension(request.getUnitExtension().trim());
+        }
         
         // Set GST rate
         if (request.getGstRate() != null) {
@@ -1336,6 +1341,7 @@ public class ProductService {
         dto.setPrice(product.getPrice());
         dto.setGstRate(product.getGstRate());
         dto.setHsnCode(product.getHsnCode());
+        dto.setUnitExtension(product.getUnitExtension());
         dto.setCreatedAt(product.getCreatedAt());
         
         // Get category name
@@ -1494,6 +1500,10 @@ public class ProductService {
         if (product.getType() == Product.ProductType.PLAIN && product.getPlainProductId() != null) {
             PlainProductDto plainProduct = plainProductService.getPlainProductById(product.getPlainProductId());
             dto.setPlainProduct(plainProduct);
+            // If unitExtension not explicitly set on product, inherit from plain product
+            if (dto.getUnitExtension() == null && plainProduct.getUnitExtension() != null) {
+                dto.setUnitExtension(plainProduct.getUnitExtension());
+            }
         }
         
         return dto;

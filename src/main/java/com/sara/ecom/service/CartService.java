@@ -175,7 +175,41 @@ public class CartService {
                 item.setCustomFormData("{}");
             }
         }
-        
+
+        // #region agent log
+        try {
+            java.util.Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("sessionId", "debug-session");
+            payload.put("runId", "pre-fix");
+            payload.put("hypothesisId", "H1");
+            payload.put("location", "CartService.java:138");
+            payload.put("message", "addToCart input and derived pricing");
+
+            java.util.Map<String, Object> data = new java.util.HashMap<>();
+            data.put("productType", request.getProductType());
+            data.put("productId", request.getProductId());
+            data.put("designPrice", request.getDesignPrice());
+            data.put("fabricPrice", request.getFabricPrice());
+            data.put("unitPrice", request.getUnitPrice());
+            data.put("quantity", request.getQuantity());
+
+            data.put("entityUnitPrice", item.getUnitPrice());
+            data.put("entityQuantity", item.getQuantity());
+
+            payload.put("data", data);
+            payload.put("timestamp", System.currentTimeMillis());
+
+            String json = objectMapper.writeValueAsString(payload);
+            java.nio.file.Files.write(
+                java.nio.file.Paths.get("r:\\My Projects\\Quout\\.cursor\\debug.log"),
+                (json + System.lineSeparator()).getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                java.nio.file.StandardOpenOption.CREATE,
+                java.nio.file.StandardOpenOption.APPEND
+            );
+        } catch (Exception ignored) {
+        }
+        // #endregion
+
         CartItem savedItem = cartItemRepository.save(item);
         
         // If this is a custom product (CUSTOM type), save it to CustomProduct table
@@ -233,6 +267,59 @@ public class CartService {
         item.setQuantity(quantity);
         return toCartItemDto(cartItemRepository.save(item));
     }
+
+    /**
+     * Full update of a CUSTOM cart item. Replaces design, fabric, variants, form, quantity, and prices.
+     * Only allowed when the existing item's productType is CUSTOM.
+     */
+    @Transactional
+    public CartDto.CartItemDto updateCartItemFull(String userEmail, Long itemId, AddToCartRequest request) {
+        CartItem item = cartItemRepository.findById(itemId)
+                .orElseThrow(() -> new RuntimeException("Cart item not found"));
+
+        if (!item.getUserEmail().equals(userEmail)) {
+            throw new RuntimeException("Unauthorized access to cart item");
+        }
+
+        if (item.getProductType() != CartItem.ProductType.CUSTOM) {
+            throw new RuntimeException("Full update is only allowed for CUSTOM cart items");
+        }
+
+        item.setProductId(request.getProductId() != null ? request.getProductId() : item.getProductId());
+        item.setProductName(request.getProductName() != null ? request.getProductName() : item.getProductName());
+        item.setProductImage(request.getProductImage() != null ? request.getProductImage() : item.getProductImage());
+        item.setDesignId(request.getDesignId());
+        item.setFabricId(request.getFabricId());
+        item.setFabricPrice(request.getFabricPrice());
+        item.setDesignPrice(request.getDesignPrice());
+        item.setUploadedDesignUrl(request.getUploadedDesignUrl() != null ? request.getUploadedDesignUrl() : item.getUploadedDesignUrl());
+        item.setQuantity(request.getQuantity() != null ? request.getQuantity() : 1);
+        item.setUnitPrice(request.getUnitPrice());
+
+        if (request.getVariantSelections() != null && !request.getVariantSelections().isEmpty()) {
+            try {
+                item.setVariants(objectMapper.writeValueAsString(request.getVariantSelections()));
+            } catch (JsonProcessingException e) {
+                item.setVariants("{}");
+            }
+        } else if (request.getVariants() != null) {
+            try {
+                item.setVariants(objectMapper.writeValueAsString(request.getVariants()));
+            } catch (JsonProcessingException e) {
+                item.setVariants("{}");
+            }
+        }
+
+        if (request.getCustomFormData() != null) {
+            try {
+                item.setCustomFormData(objectMapper.writeValueAsString(request.getCustomFormData()));
+            } catch (JsonProcessingException e) {
+                item.setCustomFormData("{}");
+            }
+        }
+
+        return toCartItemDto(cartItemRepository.save(item));
+    }
     
     @Transactional
     public void removeFromCart(String userEmail, Long itemId) {
@@ -281,7 +368,37 @@ public class CartService {
         dto.setQuantity(item.getQuantity());
         dto.setUnitPrice(item.getUnitPrice());
         dto.setTotalPrice(item.getTotalPrice());
-        
+
+        // #region agent log
+        try {
+            java.util.Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("sessionId", "debug-session");
+            payload.put("runId", "pre-fix");
+            payload.put("hypothesisId", "H2");
+            payload.put("location", "CartService.java:311");
+            payload.put("message", "toCartItemDto pricing snapshot");
+
+            java.util.Map<String, Object> data = new java.util.HashMap<>();
+            data.put("cartItemId", item.getId());
+            data.put("productType", item.getProductType() != null ? item.getProductType().name() : null);
+            data.put("unitPrice", item.getUnitPrice());
+            data.put("quantity", item.getQuantity());
+            data.put("totalPrice", item.getTotalPrice());
+
+            payload.put("data", data);
+            payload.put("timestamp", System.currentTimeMillis());
+
+            String json = objectMapper.writeValueAsString(payload);
+            java.nio.file.Files.write(
+                java.nio.file.Paths.get("r:\\My Projects\\Quout\\.cursor\\debug.log"),
+                (json + System.lineSeparator()).getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                java.nio.file.StandardOpenOption.CREATE,
+                java.nio.file.StandardOpenOption.APPEND
+            );
+        } catch (Exception ignored) {
+        }
+        // #endregion
+
         // GST will be calculated in getCart method
         dto.setGstRate(BigDecimal.ZERO);
         dto.setGstAmount(BigDecimal.ZERO);

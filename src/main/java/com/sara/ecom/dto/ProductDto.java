@@ -36,6 +36,7 @@ public class ProductDto {
     private BigDecimal pricePerMeter;
     private String fileUrl;
     private Long sourceDesignProductId; // Link to Design Product if created from it
+    private String unitExtension;
     
     // Common display flags
     private Boolean isNew;
@@ -417,6 +418,14 @@ public class ProductDto {
 
     public void setPricePerMeter(BigDecimal pricePerMeter) {
         this.pricePerMeter = pricePerMeter;
+    }
+
+    public String getUnitExtension() {
+        return unitExtension;
+    }
+
+    public void setUnitExtension(String unitExtension) {
+        this.unitExtension = unitExtension;
     }
     
     public String getFileUrl() {

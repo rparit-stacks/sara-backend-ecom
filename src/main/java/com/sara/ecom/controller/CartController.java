@@ -51,6 +51,19 @@ public class CartController {
         Integer quantity = request.get("quantity");
         return ResponseEntity.ok(cartService.updateCartItem(userEmail, itemId, quantity));
     }
+
+    /**
+     * Full update of a CUSTOM cart item (design, fabric, variants, form, quantity, prices).
+     * Only allowed when the existing item's productType is CUSTOM.
+     */
+    @PutMapping("/items/{itemId}")
+    public ResponseEntity<CartDto.CartItemDto> updateCartItemFull(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable Long itemId,
+            @RequestBody AddToCartRequest request) {
+        String userEmail = getUserEmailFromToken(authHeader);
+        return ResponseEntity.ok(cartService.updateCartItemFull(userEmail, itemId, request));
+    }
     
     @DeleteMapping("/{itemId}")
     public ResponseEntity<Void> removeFromCart(

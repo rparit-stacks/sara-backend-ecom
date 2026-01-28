@@ -71,6 +71,9 @@ public class Product {
     
     @Column(name = "hsn_code")
     private String hsnCode;
+
+    @Column(name = "unit_extension", length = 50)
+    private String unitExtension = "per meter";
     
     // Getters and Setters
     public BigDecimal getGstRate() {
@@ -87,6 +90,14 @@ public class Product {
     
     public void setHsnCode(String hsnCode) {
         this.hsnCode = hsnCode;
+    }
+
+    public String getUnitExtension() {
+        return unitExtension;
+    }
+
+    public void setUnitExtension(String unitExtension) {
+        this.unitExtension = unitExtension != null ? unitExtension : "per meter";
     }
     
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)

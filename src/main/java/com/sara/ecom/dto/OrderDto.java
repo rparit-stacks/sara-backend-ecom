@@ -70,8 +70,12 @@ public class OrderDto {
         private Map<String, Object> customData;
         /** Map of custom field id (as string) -> label for display in order dashboard */
         private Map<String, String> customFieldLabels;
+        /** Map of custom field key -> "design" | "fabric" | "system" for splitting Design vs Fabric sections */
+        private Map<String, String> customFieldSource;
         private Long designId;
         private Long fabricId;
+        /** Resolved fabric product name when DESIGNED + fabricId present */
+        private String fabricName;
         private String digitalDownloadUrl;
         private String zipPassword;
         private String uploadedDesignUrl;
@@ -106,10 +110,14 @@ public class OrderDto {
         public void setCustomData(Map<String, Object> customData) { this.customData = customData; }
         public Map<String, String> getCustomFieldLabels() { return customFieldLabels; }
         public void setCustomFieldLabels(Map<String, String> customFieldLabels) { this.customFieldLabels = customFieldLabels; }
+        public Map<String, String> getCustomFieldSource() { return customFieldSource; }
+        public void setCustomFieldSource(Map<String, String> customFieldSource) { this.customFieldSource = customFieldSource; }
         public Long getDesignId() { return designId; }
         public void setDesignId(Long designId) { this.designId = designId; }
         public Long getFabricId() { return fabricId; }
         public void setFabricId(Long fabricId) { this.fabricId = fabricId; }
+        public String getFabricName() { return fabricName; }
+        public void setFabricName(String fabricName) { this.fabricName = fabricName; }
         public String getDigitalDownloadUrl() { return digitalDownloadUrl; }
         public void setDigitalDownloadUrl(String digitalDownloadUrl) { this.digitalDownloadUrl = digitalDownloadUrl; }
         public String getZipPassword() { return zipPassword; }

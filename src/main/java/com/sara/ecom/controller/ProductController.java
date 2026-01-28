@@ -218,13 +218,14 @@ public class ProductController {
     
     /**
      * Creates or gets a Digital Product from a Design Product.
-     * This allows users to purchase just the design file without the physical product.
+     * Accepts either numeric id or slug (e.g. /products/123/create-digital or /products/my-design-slug/create-digital).
      * Public endpoint - users can access this to purchase designs.
      */
-    @PostMapping("/products/{designProductId}/create-digital")
+    @PostMapping("/products/{designProductIdOrSlug}/create-digital")
     public ResponseEntity<ProductDto> createDigitalProductFromDesign(
-            @PathVariable Long designProductId,
+            @PathVariable String designProductIdOrSlug,
             @RequestBody(required = false) com.sara.ecom.dto.CreateDigitalFromDesignRequest request) {
+        Long designProductId = productService.resolveDesignProductId(designProductIdOrSlug);
         java.math.BigDecimal price = request != null ? request.getPrice() : null;
         ProductDto digitalProduct = productService.createDigitalProductFromDesign(designProductId, price);
         return ResponseEntity.ok(digitalProduct);
@@ -232,9 +233,11 @@ public class ProductController {
     
     /**
      * Gets the Digital Product associated with a Design Product (if exists).
+     * Accepts either numeric id or slug (e.g. /products/123/digital or /products/my-design-slug/digital).
      */
-    @GetMapping("/products/{designProductId}/digital")
-    public ResponseEntity<ProductDto> getDigitalProductFromDesign(@PathVariable Long designProductId) {
+    @GetMapping("/products/{designProductIdOrSlug}/digital")
+    public ResponseEntity<ProductDto> getDigitalProductFromDesign(@PathVariable String designProductIdOrSlug) {
+        Long designProductId = productService.resolveDesignProductId(designProductIdOrSlug);
         ProductDto digitalProduct = productService.getDigitalProductFromDesign(designProductId);
         if (digitalProduct == null) {
             return ResponseEntity.notFound().build();

@@ -95,17 +95,46 @@ public class CloudinaryService {
         }
     }
     
+    /**
+     * Upload arbitrary file (PDF, ZIP, DLL, etc.) as raw. Use for digital products.
+     * Max 10MB. Any file extension allowed.
+     */
+    @SuppressWarnings("unchecked")
+    public String uploadRaw(MultipartFile file, String folder) throws IOException {
+        validateFileSize(file);
+        String targetFolder = folder != null && !folder.isEmpty() ? folder : "products/digital";
+        Map<String, Object> params = ObjectUtils.asMap(
+            "folder", targetFolder,
+            "resource_type", "raw",
+            "overwrite", true
+        );
+        try {
+            Map<String, Object> uploadResult = (Map<String, Object>) cloudinary.uploader().upload(file.getBytes(), params);
+            return (String) uploadResult.get("secure_url");
+        } catch (Exception e) {
+            String errorMessage = e.getMessage();
+            if (errorMessage != null && (errorMessage.contains("cloudinary") || errorMessage.contains("Cloudinary")
+                    || e.getClass().getName().contains("cloudinary"))) {
+                throw new IOException("Cloudinary error: " + errorMessage, e);
+            }
+            throw new IOException("Upload failed: " + errorMessage, e);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public String uploadMedia(MultipartFile file, String folder) throws IOException {
-        // Detect if it's a video or image
+        // Digital product uploads (folder contains "digital"): any file type, use raw
+        boolean isDigital = folder != null && folder.toLowerCase().contains("digital");
+        if (isDigital) {
+            return uploadRaw(file, folder);
+        }
+        // Otherwise: video -> uploadVideo, else -> uploadImage
         String contentType = file.getContentType();
         boolean isVideo = contentType != null && contentType.startsWith("video/");
-        
         if (isVideo) {
             return uploadVideo(file, folder);
-        } else {
-            return uploadImage(file, folder != null ? folder : "products/images");
         }
+        return uploadImage(file, folder != null ? folder : "products/images");
     }
     
     @SuppressWarnings("unchecked")

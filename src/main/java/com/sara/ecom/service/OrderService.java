@@ -1576,6 +1576,10 @@ public class OrderService {
         dto.setGstAmount(item.getGstAmount());
         dto.setDesignId(item.getDesignId());
         dto.setFabricId(item.getFabricId());
+        if (item.getFabricId() != null) {
+            productRepository.findById(item.getFabricId()).ifPresent(fabricProduct ->
+                dto.setFabricName(fabricProduct.getName()));
+        }
         dto.setDigitalDownloadUrl(item.getDigitalDownloadUrl());
         dto.setZipPassword(item.getZipPassword());
         dto.setUploadedDesignUrl(item.getUploadedDesignUrl());
@@ -1638,32 +1642,65 @@ public class OrderService {
             }
         }
         
-        // Resolve custom field labels (id -> label) for display in order dashboard
-        if (item.getProductId() != null && dto.getCustomData() != null && !dto.getCustomData().isEmpty()) {
-            Map<String, String> labels = resolveCustomFieldLabels(item.getProductId(), dto.getCustomData().keySet());
-            dto.setCustomFieldLabels(labels);
+        // Resolve custom field labels and source (design vs fabric) for display.
+        if (dto.getCustomData() != null && !dto.getCustomData().isEmpty()) {
+            LabelsAndSource ls = resolveCustomFieldLabelsAndSource(
+                item.getProductId(),
+                item.getFabricId(),
+                dto.getCustomData().keySet()
+            );
+            dto.setCustomFieldLabels(ls.labels);
+            dto.setCustomFieldSource(ls.source);
         }
         
         return dto;
     }
     
-    /** Builds a map of custom field id (string) -> label from the product's custom fields. */
-    private Map<String, String> resolveCustomFieldLabels(Long productId, java.util.Set<String> fieldIds) {
-        Map<String, String> labels = new HashMap<>();
-        if (productId == null || fieldIds == null || fieldIds.isEmpty()) {
-            return labels;
+    private static class LabelsAndSource {
+        final Map<String, String> labels = new HashMap<>();
+        final Map<String, String> source = new HashMap<>();
+    }
+    
+    /** Builds labels (id -> label) and source (id -> "design"|"fabric"|"system") for custom fields. */
+    private LabelsAndSource resolveCustomFieldLabelsAndSource(Long productId, Long fabricId, java.util.Set<String> fieldIds) {
+        LabelsAndSource ls = new LabelsAndSource();
+        if (fieldIds == null || fieldIds.isEmpty()) {
+            return ls;
         }
-        productRepository.findByIdWithCustomFields(productId).ifPresent(product -> {
-            if (product.getCustomFields() != null) {
-                for (com.sara.ecom.entity.ProductCustomField f : product.getCustomFields()) {
-                    String idStr = String.valueOf(f.getId());
-                    if (fieldIds.contains(idStr) && f.getLabel() != null) {
-                        labels.put(idStr, f.getLabel());
+        // Known keys we add ourselves (e.g. from cart)
+        if (fieldIds.contains("fabricMeters")) {
+            ls.labels.put("fabricMeters", "Fabric (meters)");
+            ls.source.put("fabricMeters", "system");
+        }
+        // Design product custom fields (productId)
+        if (productId != null) {
+            productRepository.findByIdWithCustomFields(productId).ifPresent(product -> {
+                if (product.getCustomFields() != null) {
+                    for (com.sara.ecom.entity.ProductCustomField f : product.getCustomFields()) {
+                        String idStr = String.valueOf(f.getId());
+                        if (fieldIds.contains(idStr) && f.getLabel() != null && !ls.labels.containsKey(idStr)) {
+                            ls.labels.put(idStr, f.getLabel());
+                            ls.source.put(idStr, "design");
+                        }
                     }
                 }
-            }
-        });
-        return labels;
+            });
+        }
+        // Fabric product custom fields (fabricId) – e.g. Name, email id, aadhar card
+        if (fabricId != null) {
+            productRepository.findByIdWithCustomFields(fabricId).ifPresent(product -> {
+                if (product.getCustomFields() != null) {
+                    for (com.sara.ecom.entity.ProductCustomField f : product.getCustomFields()) {
+                        String idStr = String.valueOf(f.getId());
+                        if (fieldIds.contains(idStr) && f.getLabel() != null && !ls.labels.containsKey(idStr)) {
+                            ls.labels.put(idStr, f.getLabel());
+                            ls.source.put(idStr, "fabric");
+                        }
+                    }
+                }
+            });
+        }
+        return ls;
     }
     
     /**

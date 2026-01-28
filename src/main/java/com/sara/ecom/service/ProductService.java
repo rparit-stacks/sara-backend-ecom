@@ -700,6 +700,23 @@ public class ProductService {
         return toDtoWithDetails(digitalProduct);
     }
     
+    /**
+     * Resolves design product id-or-slug to Long. Accepts numeric ID or product slug.
+     * Used by digital-from-design endpoints so frontend can pass either id or slug.
+     */
+    public Long resolveDesignProductId(String idOrSlug) {
+        if (idOrSlug == null || idOrSlug.isBlank()) {
+            throw new RuntimeException("Design product id or slug is required");
+        }
+        String s = idOrSlug.trim();
+        if (s.matches("\\d+")) {
+            return Long.parseLong(s);
+        }
+        return productRepository.findBySlug(s)
+                .orElseThrow(() -> new RuntimeException("Design product not found: " + s))
+                .getId();
+    }
+    
     private String generateSlug(String name) {
         if (name == null) return "";
         return name.toLowerCase()
